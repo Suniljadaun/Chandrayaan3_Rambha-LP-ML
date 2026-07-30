@@ -1,0 +1,21 @@
+# Raw mission data — never commit, it's redownloadable and huge
+data/
+*.cdf
+*.xml
+*.zip
+
+# Python junk
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Virtual environment
+venv/
+.venv/
+
+# OS noise
+.DS_Store
+
+Chandrayaan-3/
+rambha-env/
+*.xlsx
