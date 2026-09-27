@@ -1,0 +1,235 @@
+# ============================================================================
+#  RAMBHA-LP solution — single source of truth for paths and hyperparameters.
+#  Edit THIS file, not the code. Every script reads from here.
+# ============================================================================
+
+data:
+  # Root of the extracted RAMBHA-LP PDS4 bundle (the folder that contains
+  # `data/raw`, `document/`, `Miscellaneous/`). Relative paths are resolved
+  # against the solution/ folder. The default below matches your machine.
+  archive_root: "../Chandrayaan-3/ch3_rambha/LTA_RAMBHA-LP_August2024_final"
+
+  # Which processing level to use for the classical baseline and ML application.
+  #   raw   = level-0   : bias + raw output voltage (needs gain-table conversion)
+  #   rawA  = level-0A  : (V, I) in amps, photoemission NOT removed
+  #   rawB  = level-0B  : (V, I) in amps, photoemission removed  <-- science-ready
+  level: "rawB"
+
+  # Limit the number of science files parsed (null = all). Handy while iterating.
+  max_files: null
+
+probe:
+  # Spherical Langmuir probe geometry (from the PDS4 label / user manual).
+  radius_m: 0.025          # 2.5 cm sphere
+  # Physical constants (SI) — do not edit.
+  q_e: 1.602176634e-19
+  k_b: 1.380649e-23
+  m_e: 9.1093837015e-31
+  m_i_amu: 1.0             # dominant ion mass for OML ion current (H+ ~ solar wind proxy)
+
+  # Sheath-expansion exponent for the electron-saturation branch:
+  #     I_e(V >= Vp) = I_e0 * (1 + (V - Vp)/Te) ** sheath_exponent
+  # 1.0 = OML sphere (thick sheath, current grows linearly)
+  # 0.5 = square-root sheath growth (OML cylinder / partial sheath expansion)
+  # 0.0 = planar thin sheath (current saturates flat)
+  # physics.py previously hard-coded 1.0. Fitting this exponent as a free parameter against
+  # 100 real RAMBHA sweeps gives a median of 0.40 (p25-p75 0.30-0.43), and the fit quality is
+  # decisive:
+  #     alpha free  -> median R^2 0.998
+  #     alpha = 0.5 -> median R^2 0.992
+  #     alpha = 1.0 -> median R^2 0.972   (the old hard-coded value)
+  #     alpha = 0.0 -> median R^2 0.946
+  # 0.40, the fitted value, is used rather than the rounder 0.5: at 0.40 the classical fit
+  # reproduces ALL THREE published parameters for 2 Sep 2023 simultaneously (Ne 508 cm^-3
+  # against a published 409-680; Te 3535 K against 1800-3800 K; Vp -4.06 V against -3.9 V),
+  # and the recovered Ne is stable at 503-509 across every retardation window from 0.5 to
+  # 6 V. At 0.5 the density drops to ~330 cm^-3, below the published band.
+  #
+  # The exponent is NOT an instrumental artefact. The obvious candidate -- an I*R drop across
+  # the probe resistor bending the saturation branch -- is ruled out by measurement: the
+  # fitted exponent is 0.30 / 0.40 / 0.30 at the 49.9 kohm / 1 Mohm / 20 Mohm settings, with
+  # overlapping interquartile ranges, while the implied I*R drops are 0.00 / 0.07 / 0.06 V.
+  # Three measurement chains carrying currents that differ by a factor of 26 agree on it.
+  sheath_exponent: 0.40
+
+preprocess:
+  bias_min: -12.0          # sweep voltage range (V)
+  bias_max: 12.0
+  bias_step: 0.10          # commanded step voltage (V) from ops table
+  grid_points: 240         # fixed-length resampled curve fed to the network
+  min_samples_per_bin: 3   # a voltage bin needs >= this many samples to count
+  split_ramps: true        # Each ops segment is a TRIANGLE ramp (-12 -> +12 -> -12) in one
+    # block of samples. With this false, bin_sweep averages the rising and falling ramps into
+    # a single curve -- half the measurements discarded and any hysteresis averaged away.
+    # With it true they become two independent sweeps (idx 2i and 2i+1, direction "up"/"down"),
+    # which also gives a free systematic-error estimate: validate.ramp_consistency compares
+    # the two halves of each segment, and their disagreement is a data-derived error bar that
+    # does not depend on MC-dropout.
+
+classical:
+  # Windows for the classical OML fit (all in volts, relative to V_float).
+  retardation_span: 1.0    # electron-retardation fit window above V_float (an upper bound;
+    # the fit trims it at Vp once Vp is known). Briefly set to 1.5 during the 2026-09-03
+    # rewrite on the basis of a fitted Te of ~0.14 eV -- but that Te was itself an artefact of
+    # forcing probe.sheath_exponent = 1.0. With the measured exponent of 0.5 the fitted Te is
+    # ~0.5 eV and 6.0 is the better value: it recovers 8/8 synthetic round-trip cases (1.5
+    # recovers only 4/8, because a 1.5 V window is too short a lever arm at Te >= 0.8 eV) and
+    # succeeds on 28% of real sweeps against 23% at 4.0 and 46% at 1.5 with wrong parameters.
+  ion_floor_offset: 2.0    # sample ion current this far below V_float
+  min_fit_points: 4        # minimum points to attempt the exponential fit. Manju et al. use
+    # 8-10 points, which at the 0.1 V commanded step is a window of 0.8-1.0 V; that is
+    # available at Te >~ 0.3 eV but not at the low-Te end, where the whole retardation branch
+    # spans under a volt. Four is the floor at which a slope is still meaningful.
+  # A sweep is flagged "classical FAILED" if any of these is true:
+  fail_if_te_nonpositive: true
+  te_plausible_eV: [0.03, 5.0]   # Te outside this band => flagged failure
+  ne_plausible_cc: [1.0, 100000.0]  # Ne outside this band => flagged failure
+  min_r2: 0.90                    # exp-fit R^2 below this => flagged failure
+
+synthetic:
+  n_train: 40000
+  n_val: 4000
+  seed: 1337
+  # Parameter sampling ranges (log-uniform for Ne, uniform for Te/Vp).
+  ne_cc: [2.0, 1000.0]
+  # Was [50, 5000]. Chosen by measurement, not by guess: the test is whether the amplitude
+  # distribution of SYNTHETIC curves covers the amplitude distribution of REAL ones, since
+  # anything outside it forces the network to extrapolate. Under the old range only 62% of
+  # real sweeps fell inside the synthetic 5th-95th percentile band and the real median sat at
+  # the synthetic 10th percentile -- i.e. nearly every real sweep was fainter than nearly
+  # every training curve, which is why the network pinned Ne near 100 cm^-3 for all 14,931 of
+  # them regardless of input. With [2, 1000] (and sheath_exponent 0.5) coverage is 100% and
+  # the real median sits at the synthetic 80th percentile. Consistent with the corrected
+  # classical fit, which gives a median Ne of ~300 cm^-3 on real sweeps, and with the
+  # 380-600 cm^-3 of MNRAS 542, 2647.
+  te_eV: [0.05, 2.0]
+  # Unchanged: covers both the free fit (~0.14 eV) and MNRAS's 3000-8000 K (0.26-0.69 eV).
+  vp_V: [-12.0, 6.0]
+  # Was [-6, 6]. The same fit puts Vp at a median of -5.5 V with p25 at -6.0, so roughly a
+  # quarter of real sweeps want a plasma potential below the old lower bound.
+  ion_current_frac: [0.002, 0.10]  # residual baseline tilt left after baseline subtraction,
+    # as a fraction of curve span. NOTE the changed meaning: this is now a MAGNITUDE range,
+    # sampled log-uniformly, with a random sign -- so it is still zero-mean, but it spans the
+    # right orders of magnitude instead of one fixed scale.
+    #
+    # Was [-0.4, 0.4]. Measured on 394 well-fitted real sweeps by subtracting the fitted OML
+    # model and taking the linear trend of what is left, over span:
+    #     median 0.0122, p75 0.0419, p95 0.3026
+    # The old value injected a tilt up to 0.4 of span -- 33x the real median, and 46x the
+    # median injected noise. Once the noise was corrected this tilt became by far the largest
+    # confounder in the training set, and it is the most likely reason the network's electron
+    # temperature error stayed at 0.31 eV when the noise measurement predicted it should fall
+    # to under 0.1 eV. (Historical note: this key was previously changed from [0.0, 0.4] to
+    # [-0.4, 0.4] to remove a one-sided bias. That fix was correct in sign and wrong in scale.)
+    #
+    # For reference, the NON-LINEAR part of the same residual is 0.033 of span (p95 0.171).
+    # That is structure the OML model does not describe at all, and it sets a floor on the
+    # reconstruction score that no amount of training can cross. Old comment retained below:
+    # (was [0.0, 0.4] --
+    # always-positive, which taught the network a systematic "more visible amplitude implies
+    # somewhat LOWER true Ne" bias, since every training curve's saturation region was
+    # inflated, never deflated. That is a real sim-to-real gap: real sweeps after baseline
+    # subtraction aren't one-sidedly inflated, so the network under-predicted Ne on real data
+    # relative to classical (observed ~5.6x low, Ne_dex_median_diff=-0.745 vs classical on the
+    # 81 sweeps both methods succeeded on). Symmetric bounds keep the same max perturbation
+    # magnitude (0.4) while making the tilt's mean contribution zero across the training set.
+  # Noise is drawn PER CHANNEL, not from one pooled range. The archive is split almost exactly
+  # in thirds between the three probe-resistance settings, and their noise levels differ by an
+  # order of magnitude, so a single pooled range misrepresents two thirds of the data. Each
+  # synthetic curve picks one of these entries uniformly, then draws log-uniformly within it:
+  #   49.9 kohm : measured median 0.0021 (p90 0.0051)
+  #   1 Mohm    : measured median 0.0024 (p90 0.0039)
+  #   20 Mohm   : measured median 0.0182 (p90 0.0400)
+  # Pooling them log-uniformly over [0.0015, 0.05] gave a median of 0.0087 against a real
+  # median of 0.0028 -- still 3x too noisy for the two quiet channels, which carry two thirds
+  # of the archive.
+  # --- second electron population -------------------------------------------------------
+  # The archive is not described by a single Maxwellian: the local temperature d(ln Ie)/dV
+  # varies five-fold across the retarding region, and resolving two populations moves the
+  # recovered temperature from 3903 K onto the published 2573 K (see twopop.py). With this
+  # true the synthetic set carries a cold majority plus a hot minority and the network
+  # predicts five parameters instead of three.
+  # Values from the archive decomposition: hot component at 1.2-1.9 eV carrying 4-6% of the
+  # density, consistent with lunar photoelectrons (~2 eV, Feuerbacher et al. 1972).
+  two_population: false          # false keeps the validated three-parameter pipeline
+  te_hot_eV: [0.8, 4.0]          # log-uniform. The decomposition gives 1.2-1.9 eV using the
+                                 # classical plasma potential and 1.6-1.9 eV using the
+                                 # network's; the local-temperature profile is still rising at
+                                 # the deepest measurable point, so the upper bound is headroom
+                                 # rather than a fitted value.
+  hot_fraction: [0.0, 0.15]      # share of total density, for sweeps that HAVE a hot component
+  hot_absent_frac: 0.35          # share of sweeps with NO hot component at all (exactly zero).
+                                 # An explicit atom at zero, not the tail of a uniform. Without
+                                 # it the network never sees a decisive single-population
+                                 # example and, under squared-error loss, falls back to the
+                                 # prior mean (~7.5%) whenever the hot signature is below the
+                                 # noise floor -- reporting a hot population on curves that
+                                 # have none. That is what the negative-control test caught.
+
+  noise_frac_by_channel:
+    - [0.0015, 0.0055]     # 49.9 kohm
+    - [0.0015, 0.0045]     # 1 Mohm
+    - [0.0080, 0.0450]     # 20 Mohm
+  noise_frac: [0.0015, 0.05]     # fallback if noise_frac_by_channel is absent; also the
+    # LOG-uniformly (the range spans a factor of 33). Was [0.01, 0.08], which was 3x to 24x
+    # noisier than the real data and was doing real damage. Measured on the binned archive as
+    # the residual about a 9-point smooth, divided by curve span:
+    #     49.9 kohm : median 0.0021   (p90 0.0051)
+    #     1 Mohm    : median 0.0024   (p90 0.0039)
+    #     20 Mohm   : median 0.0182   (p90 0.0400)
+    # Two consequences of the old value, both now fixed. A narrow retardation window needs low
+    # noise, so the window that works on real sweeps failed every synthetic round-trip -- which
+    # looked like a sim-to-real gap and was really just the wrong noise. And the earlier
+    # conclusion that electron temperature is "information-limited to +-0.35 eV" was derived at
+    # the old noise level. At the measured level Te is resolvable to +-0.035 eV on the 49.9 kohm
+    # and 1 Mohm channels -- two thirds of the archive -- and +-0.29 eV at 20 Mohm.
+
+model:
+  hidden: [256, 256, 128]
+  dropout: 0.10                   # enables MC-dropout uncertainty at inference
+  # Loss weights: total = w_sup*supervised + w_phys*physics_reconstruction
+  w_supervised: 1.0
+  w_physics: 0.5
+
+train:
+  epochs: 250              # was 60. The 60-epoch run ended with validation loss still falling
+    # steeply (0.0871 -> 0.0782 -> 0.0689 -> 0.0631 over the last four logged epochs), i.e. it
+    # was stopped mid-descent rather than at convergence.
+  batch_size: 512
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  device: "auto"                  # auto | cpu | cuda
+  seed: 1337
+
+maven:
+  enabled: true
+  # If the online download fails or is disabled, the code falls back to a
+  # MAVEN-like synthetic distribution so the transfer stage still runs.
+  allow_download: true
+  cache_dir: "outputs/maven_cache"
+  pretrain_epochs: 40
+  # Mars ionosphere plasma ranges (broader/denser than the Moon) for the
+  # MAVEN-like distribution used to pretrain, then fine-tune on lunar synthetic.
+  ne_cc: [500.0, 100000.0]
+  te_eV: [0.1, 5.0]
+
+validate:
+  # Pre-hop (baseline) and terminator dates for the blind physics test. NOTE: this was
+  # previously a single hop_date="20230826" -- but 20230826 is an early demo-session date,
+  # not the actual lander-hop event. The established target from this project's own earlier
+  # research is the hop around 2 Sep 2023: pre-hop density ~478/cc, terminator (3 Sep)
+  # ~1100/cc, with the crash epoch itself acquired in zero-potential mode (no sweeps exist for
+  # it, so it cannot be tested via sweep-reading -- only the pre-hop/terminator CONTEXT is
+  # testable). If this pins the wrong dates for your archive, they're one edit here.
+  pre_hop_date: "20230902"
+  terminator_date: "20230903"
+  mc_samples: 50                  # MC-dropout forward passes for uncertainty
+  min_sweeps_per_day: 100         # a day with fewer recovered sweeps than this is reported
+    # but excluded from the density-trend statistic. 3 Sep 2023 has ~200 sweeps in total and
+    # only a handful recovered, which is why the old single-day hop test was not testable.
+
+paths:
+  outputs: "outputs"
+  figures: "outputs/figures"
+  tables: "outputs/tables"
+  checkpoints: "outputs/checkpoints"

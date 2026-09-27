@@ -1,0 +1,16 @@
+# Core scientific stack — pinned to widely-available, stable versions.
+numpy>=1.24,<2.2
+pandas>=2.0
+scipy>=1.10
+matplotlib>=3.7
+pyyaml>=6.0
+
+# ML — CPU wheels install fine; GPU wheels used automatically on Kaggle/Colab.
+torch>=2.0
+
+# Utilities
+tqdm>=4.65
+requests>=2.31
+
+# Testing (optional, for `pytest tests/`)
+pytest>=7.4
