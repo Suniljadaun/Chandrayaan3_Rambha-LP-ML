@@ -82,8 +82,22 @@ def forward_iv_np(V, Ne_cc, Te_eV, Vp_V, cfg):
     # Capping at 60 keeps both branches on a comparable numerically-safe scale and does not
     # touch the physics anywhere real lunar sweeps live (|x| is well under 60 there).
     alpha = float(cfg["probe"].get("sheath_exponent", 1.0))
-    shape = np.where(V < Vp_V, np.exp(np.clip(x, -60, 0)),
-                     (1.0 + np.clip(x, 0, 60)) ** alpha)
+    retard = np.exp(np.clip(x, -60, 0))
+    sat = (1.0 + np.clip(x, 0, 60)) ** alpha
+    k = transition_width_te(cfg)
+    if k > 0.0:
+        # Blend in LOG space, not linear. Blending the currents directly is wrong and
+        # actively dangerous here: deep in the retarding region the saturation branch is
+        # clipped to (1+0)**alpha = 1, so a linear blend contributes w*1 there. With
+        # w = sigmoid(x/k) that term decays as exp(x/k) -- SLOWER than the true exp(x) -- so it
+        # dominates the deep tail and manufactures a spurious second population at temperature
+        # k*Te. That is precisely the artefact this whole line of work exists to rule out.
+        # Blending the logarithms makes the correction vanish as w -> 0 instead.
+        w = _blend_weight_np(x / k)
+        log_shape = (1.0 - w) * np.clip(x, -60, 0) + w * (alpha * np.log1p(np.clip(x, 0, 60)))
+        shape = np.exp(log_shape)
+    else:
+        shape = np.where(V < Vp_V, retard, sat)
     return Ie0 * shape
 
 
@@ -100,6 +114,34 @@ def forward_iv_two_np(V, Ne_c, Te_c, Ne_h, Te_h, Vp_V, cfg):
     """
     return (forward_iv_np(V, Ne_c, Te_c, Vp_V, cfg)
             + forward_iv_np(V, Ne_h, Te_h, Vp_V, cfg))
+
+
+# --------------------------------------------------------------------------------------
+#  Retardation -> saturation transition
+# --------------------------------------------------------------------------------------
+# The model below is piecewise: exp((V-Vp)/Te) for V < Vp, then (1 + (V-Vp)/Te)**alpha for
+# V >= Vp. Those two branches have DIFFERENT SLOPES at V = Vp, so the curve has a kink there.
+# Real sweeps do not: electrons arrive with a spread of energies, so there is no single bias at
+# which retardation stops and saturation begins -- the changeover happens over roughly a thermal
+# width.
+#
+# That kink is not cosmetic. The matched-control diagnostic (scripts/11_local_te_diagnostic.py)
+# found the real stacked curves flatter than a stack of single Maxwellians in the 0.6 V below Vp,
+# reproducibly on NINE of nine observation days (sign test p = 0.002). Blending the two branches
+# over a width of ~1.3*Te removes that excess entirely: +0.18 and +0.24 eV at u = -0.6 and -0.3
+# become +0.00 and -0.02. Varying the sheath exponent over 0.40 / 0.70 / 1.00 changes it by
+# nothing at all, because alpha acts only above Vp.
+#
+# Width 0 reproduces the sharp model exactly, so this is off unless probe.transition_width_te
+# is set.
+def _blend_weight_np(x_over_width):
+    import numpy as _np
+    return 1.0 / (1.0 + _np.exp(-_np.clip(x_over_width, -60.0, 60.0)))
+
+
+def transition_width_te(cfg) -> float:
+    """Changeover width at Vp, as a multiple of Te. 0 disables the smoothing."""
+    return float(cfg["probe"].get("transition_width_te", 0.0))
 
 
 def to_input_np(I_amps):
@@ -127,7 +169,15 @@ def forward_iv_torch(V, Ne_cc, Te_eV, Vp_V, cfg):
     # push x arbitrarily high, overflowing 1+x to inf and poisoning the whole loss to NaN.
     alpha = float(p.get("sheath_exponent", 1.0))
     sat = (1.0 + torch.clamp(x, min=0.0, max=60.0)) ** alpha
-    Ie = Ie0 * torch.where(V < Vp_V, retard, sat)
+    k = float(p.get("transition_width_te", 0.0))
+    if k > 0.0:
+        # Log-space blend -- see forward_iv_np for why a linear blend fabricates a slow tail.
+        w = torch.sigmoid(torch.clamp(x / k, min=-60.0, max=60.0))
+        log_shape = ((1.0 - w) * torch.clamp(x, min=-60.0, max=0.0)
+                     + w * alpha * torch.log1p(torch.clamp(x, min=0.0, max=60.0)))
+        Ie = Ie0 * torch.exp(log_shape)
+    else:
+        Ie = Ie0 * torch.where(V < Vp_V, retard, sat)
     return Ie / I_SCALE
 
 

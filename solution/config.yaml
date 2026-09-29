@@ -52,6 +52,21 @@ probe:
   # Three measurement chains carrying currents that differ by a factor of 26 agree on it.
   sheath_exponent: 0.40
 
+  # Width of the retardation -> saturation changeover at Vp, as a MULTIPLE OF Te.
+  # 0.0 = the sharp piecewise model (exp below Vp, power law above), which has a kink at Vp
+  # because the two branches meet with different slopes. Real sweeps cannot have that kink:
+  # electrons arrive with a spread of energies, so the changeover occupies roughly a thermal
+  # width. Setting this blends the two branches IN LOG SPACE over k*Te.
+  #
+  # Honest accounting of what it buys: it reduces the near-Vp discrepancy found by
+  # scripts/11_local_te_diagnostic.py from +0.24 to +0.13 eV at 0.3 V below Vp (rms excess
+  # 0.229 -> 0.209 at k = 1.3, 0.197 at k = 1.6). A real improvement, and NOT the explanation
+  # for that discrepancy -- an earlier version of this blend appeared to remove it completely,
+  # but that version blended the currents linearly, which leaks the clipped saturation branch
+  # into the deep tail and fabricates a spurious slow exponential. Left at 0.0 until the
+  # near-Vp discrepancy is actually understood; raising it changes every fitted parameter.
+  transition_width_te: 0.0
+
 preprocess:
   bias_min: -12.0          # sweep voltage range (V)
   bias_max: 12.0
@@ -187,6 +202,25 @@ synthetic:
 model:
   hidden: [256, 256, 128]
   dropout: 0.10                   # enables MC-dropout uncertainty at inference
+
+  # Second-stage temperature head. See src/rambhalp/te_refine.py for the full rationale.
+  # Te is degenerate with Vp at corr = +0.93, which inflates the achievable Te error 3.3x.
+  # Aligning the curve on the predicted Vp and normalising by the density removes both
+  # competing quantities before the network sees it, and halves the Te error on synthetic
+  # hold-out: 22.8% +- 1.5% -> 11.8% +- 0.9% (3 seeds, 10.7 sigma, scripts/13).
+  #
+  # TESTED ON REAL SWEEPS AND REJECTED (scripts/14, Phase 17b/17c). The synthetic gain
+  # reproduced exactly, but ramp-pair repeatability on the archive got 32% WORSE (0.0076 ->
+  # 0.0101 eV over 14,931 pairs) and a -0.048 eV offset appeared against the classical method.
+  # Moving the window below the region where the forward model is known to be wrong made every
+  # metric worse still, synthetic included, because that region lies under the noise floor.
+  #
+  # The conclusion is instrument-specific and quantified: on RAMBHA-LP the Te signal and the
+  # sim-to-real defect occupy the SAME bias region and cannot be separated by windowing. Te
+  # accuracy here is limited by the forward model near Vp, not by the estimator.
+  #
+  # Leave false. The code stays because the negative result is worth reproducing.
+  te_refine: false
   # Loss weights: total = w_sup*supervised + w_phys*physics_reconstruction
   w_supervised: 1.0
   w_physics: 0.5

@@ -2302,3 +2302,770 @@ Several papers were paywalled or robots-blocked and are characterised from abstr
 metadata only: Ergun et al. 2021 (JGR 2020JA028956), Resendiz Lira & Marchand 2021, the PPCF 2024
 neural-network paper, Mishra & Bhardwaj 2019, and Chatain et al. 2021 Part I. **Verify these
 before citing any of them in the report.**
+
+---
+
+## Phase 14 — The photoelectron test, and what it revealed instead
+
+The literature audit flagged that the hot component (1.2-1.9 eV) sits exactly where laboratory
+photoelectron layers sit (Dove et al. 2012: 1.4 +- 0.3 eV), on a probe ~2 m above sunlit regolith.
+Ambient hot plasma and photoelectrons emitted by the hardware are two completely different claims
+about the Moon. `scripts/09_photoelectron_test.py` was written to separate them.
+
+### The discriminating physics
+
+Photoemission current is set by solar flux and emitting area. It does **not** scale with the
+surrounding plasma density. An ambient hot population does, since both populations come from the
+same plasma. So fit `log10(Nh) = a * log10(Nc) + b`:
+
+- `a ~ 1` -> hot density tracks the plasma -> **ambient population**
+- `a ~ 0` -> hot density is a fixed current -> **photoelectrons**
+
+The statistic was verified numerically before use: a fraction-based construction gives
+`a = +1.015` with `corr(log Nc, hot fraction) = +0.013`, and a fixed emitted density gives
+`a = -0.007` with `corr = -0.919`. Clean separation, and the fraction correlation flips sign.
+
+### Three obstacles found along the way, all worth recording
+
+**The classical decomposition cannot run per-sweep on this archive.** A gate-by-gate trace over
+1200 sweeps: 679 had **zero** points in the hot band above 3 sigma, and not one produced a
+decomposition. The reason is arithmetic. The hot tail lives 1.5-2.6 V below Vp, where the electron
+current is `exp(-d/Te)` of its peak: 2.4% at 1.5 V and 0.67% at 2.0 V for Te = 0.4 eV. The
+measured noise floor is 0.2% of span on the quiet channels and **1.8% on the 20 Mohm setting**.
+The signal is at or under the noise. The second population is a **population-level feature of
+this archive, not a per-sweep measurement** — which is how it was found in the first place, by
+stacking 1403 sweeps.
+
+**`V_float` is nan for a third of successful classical fits** (11,220 of 16,596 finite), because
+the single-population fit does not need it — but `fit_two_populations` requires it and silently
+declines. Recovered here from the flux-balance relation the project already uses,
+`V_float = Vp - Te*ln(sqrt(m_i/2*pi*m_e))`, which restored 5,376 sweeps.
+
+**Two latent bugs in the scripts.** `06_validate_hop.py` rebuilds `ClassicalResult` from a
+hard-coded 11-column list, silently dropping `Vp_V`, `Ie0_A` and three others that the CSV does
+carry. It happens not to matter there (only Te and Ne are used) but the same pattern in step 9
+produced "0 fits" with no error. Step 9 now reconstructs from every declared field and prints
+which are missing. The hot-tail band and its minimum point count in `twopop.py` are now
+overridable, defaults unchanged.
+
+### The result: the test cannot answer the question, and the reason matters more
+
+Stacking by density bin, three of ten stacks decomposed:
+
+| Nc (cm^-3) | Nh (cm^-3) | Tc (K) | Th (K) | hot fraction | n |
+|---|---|---|---|---|---|
+| 522.1 | 0.33 | 2595 | 20982 | 0.001 | 1498 |
+| 528.0 | 11.03 | 2993 | 20036 | 0.020 | 1498 |
+| 511.5 | 28.89 | 4314 | 13379 | 0.053 | 1498 |
+
+**Nc is flat at 511-528 while Nh varies by a factor of ~90.** There is no slope to measure,
+for two independent reasons:
+
+1. **The lever arm does not exist.** Classical density spans only p10 = 145 to p90 = 528 cm^-3 —
+   a factor of 3.6, **0.56 dex**. The statistic was verified over 2.5 dex. Across 0.56 dex,
+   distinguishing slope 0 from slope 1 means distinguishing a factor-3.6 change in Nh from no
+   change, which requires Nh stable to well inside that. It is not.
+2. **The decomposition is degenerate.** Tc rises 2595 -> 4314 K while Th falls 20982 -> 13379 K
+   across stacks whose Nc is identical. That is the fit trading cold temperature against hot
+   amplitude, not physics varying.
+
+### What this forces us to withdraw
+
+**The Phase 8 archive values — Tc = 2856 K, Th = 13,662 K, hot fraction 4.3% — were one draw
+from a wide distribution, not a measurement.** Three stacks of 1,498 sweeps each give
+Tc 2595-4314 K, Th 13,379-20,982 K, and hot fraction 0.1%-5.3%. The hot fraction alone spans a
+factor of 50. Those numbers must not appear in the report as quoted values.
+
+Note how consistent this is with everything else found independently: the network gives the hot
+channels only +21-35% skill against a constant; the classical hot temperature moved between
+13,700 K and 22,000 K depending on which Vp was used. Three different routes all say the hot
+population's *parameters* are not determined by this data.
+
+### What still stands
+
+- **The curves are not single Maxwellians.** The local-Te profile varies five-fold across the
+  retarding region (1.70 eV down to 0.35 eV over 1.9 V), stacked over 1403 sweeps. That is a
+  statement about curve *shape* and does not depend on the amplitude decomposition at all. It
+  survives intact, and it remains in tension with Ambili et al.'s claim of no multiple slopes.
+- **The cold population is well measured**: Tc near the published 2573 K, Nc, Vp and the density
+  trend all reproduce independently.
+- **The network's slope is 0.768 +- 0.005 with corr(log Nc, hot fraction) = -0.425.** Because the
+  training prior hard-wires Nh proportional to Nc — a slope of exactly 1 — a value of 0.768 means
+  the real sweeps are pulling *away* from the prior, in the photoelectron direction. That is
+  suggestive and no more: the network shares the same degeneracy, and the classical route is too
+  unstable to corroborate it.
+
+### Verdict and the right next step
+
+**Undetermined, and it cannot be settled by a statistical test on this decomposition.** The
+report should say that the second population is detected as a shape feature, that its identity
+(ambient plasma versus hardware photoelectrons) is unresolved, and that its temperature and
+density are not quoted.
+
+The way to actually settle it is the literature's answer, not a better statistic: **put a
+photoemission term in the forward model.** MAVEN's LPW fit carries two photoelectron currents as
+free parameters rather than pre-subtracting them. If a bias-independent photoemission offset plus
+ONE Maxwellian reproduces the real local-Te profile as well as two Maxwellians do, the hot
+population was never needed. That is a decisive test rather than a suggestive correlation, and it
+is the same experiment already run successfully in Phase 8 to validate the two-population
+training set against the real profile.
+
+---
+
+# Phase 15 — RETRACTION: the evidence for two populations does not survive its control
+
+This is the most consequential entry in this document. **The measurement that the entire
+two-population line of work rests on does not reproduce, and the reproducible version of it does
+not support a second electron population.**
+
+## What the claim rested on
+
+One measurement: the local temperature `d(ln Ie)/dV` across the retarding region of a stacked
+curve, reported in Phase 8 as **1.70 eV at 1.9 V below Vp falling to 0.36 eV near Vp over 1403
+sweeps**. A single Maxwellian requires that profile to be flat, so a five-fold monotonic variation
+looked decisive. Everything after it — `twopop.py`, the five-parameter network, the spike-and-slab
+prior, the photoelectron question — was built on that one row of numbers.
+
+Three problems with it, found while trying to use it:
+
+1. **The code that produced it was never saved.** No script in the repository computes it.
+2. **Two records of it disagree.** CODE_REVIEW.md line 1587 has
+   `1.70 1.62 1.46 1.17 0.74 0.41 0.36 0.35 0.49`; twopop.py's docstring has
+   `1.70 1.46 0.98 0.55 0.36 0.35 0.49`. Same claimed diagnostic, different numbers.
+3. **It had no control.**
+
+## The control it needed
+
+A stacked curve is an average of sweeps, and each sweep has its own temperature. **A sum of
+exponentials with different decay constants is not an exponential** — it has a graded local slope.
+So stacking sweeps drawn from a distribution of temperatures produces the two-population signature
+even when every individual sweep is a textbook single Maxwellian.
+
+That is not a marginal effect on this archive. Classical Te runs from 0.24 eV (p1) to 1.56 eV
+(p99), and the deep retarding region of a stack is dominated by its hottest members: **sweeps
+above the 90th percentile of Te supply 65% of the stacked current at u = -1.9 V while being 10%
+of the sample.** Stacking 16,596 perfect single Maxwellians at the archive's own measured
+temperatures yields a profile of 0.78 / 0.53 / 0.43 eV — graded, monotonic, and entirely
+artefactual.
+
+So the diagnostic is only evidence insofar as the real profile **exceeds a matched control**: the
+same sweeps, each given a perfect single Maxwellian at its own measured Te and Ne, stacked
+identically. `scripts/11_local_te_diagnostic.py` now always computes both.
+
+## The result
+
+Over 14,971 sweeps with a good classical fit, same window, same Vp alignment:
+
+| group | source | −1.9 | −1.5 | −1.0 | −0.6 | −0.3 |
+|---|---|---|---|---|---|---|
+| ALL (14971) | REAL stacked | 0.47 | 0.44 | 0.70 | 0.65 | 0.67 |
+| ALL | control: 1 Maxwellian | 0.77 | 0.64 | 0.52 | 0.46 | 0.42 |
+| ALL | **REAL − control** | **−0.30** | **−0.20** | **+0.18** | **+0.19** | **+0.25** |
+| channel 1 (9482) | REAL − control | −0.27 | −0.17 | +0.25 | +0.26 | +0.32 |
+| channel 2 (5489) | REAL − control | −0.21 | −0.05 | +0.00 | +0.02 | +0.10 |
+
+Three things to note, all bad for the claim:
+
+**The reported profile does not reproduce.** Nothing resembling 1.70 / 1.17 / 0.36 appears in any
+selection — all sweeps, either channel individually, or any single day. The real stacked profile
+is 0.47 / 0.70 / 0.67: nearly flat, and not even monotonic.
+
+**The excess has the wrong sign where it matters.** A hot population makes the DEEP retarding
+region hotter, so the excess should be positive and growing leftward. It is **negative** at
+−1.9 and −1.5 V in both channels: the real curves are *flatter* at depth than a stack of pure
+single Maxwellians. The positive excess sits near Vp, which is where the saturation knee and the
+sheath exponent live — not where a hot tail lives.
+
+**The per-day pattern is incoherent.** 25 Aug gives +1.62 near Vp and −0.39 at depth; 27 Aug gives
++0.30 at depth and −0.05 near Vp. There is no consistent signature, which is what noise plus
+baseline-subtraction error looks like.
+
+## What is now withdrawn
+
+- **The claim that this archive shows two electron populations.** Unsupported.
+- **Tc = 2856 K, Th = 13,662 K, hot fraction 4.3%** as archive values. Already downgraded in
+  Phase 14 for instability; now they describe a decomposition of something there is no evidence
+  for.
+- **"Resolving two populations moves the recovered temperature from 3903 K onto the published
+  2573 K"** — the justification comment in config.yaml for `two_population`. That reasoning is
+  void.
+- **The stated tension with Ambili et al.** There is none. They report a single Maxwellian and no
+  multiple slopes; the controlled diagnostic agrees with them. The project is now *consistent*
+  with the published analysis rather than contradicting it, which is a weaker headline and a
+  sounder position.
+- **The photoelectron question of Phase 14** is moot. There is no second population whose origin
+  needs explaining.
+
+## What survives, and it is not nothing
+
+- **The five-parameter network itself.** It trains, its output width follows config, it recovers a
+  hot population that is genuinely present in synthetic data, and — the control that now matters
+  most — it declines to invent one when none exists (1.7% false hot fraction, p90 3.2%). That is a
+  working two-population inversion, and no published ML-Langmuir work has one.
+- **Everything about the cold population**, which was never in question: Te agreeing with the
+  published value, Ne agreement with the classical method to 0.005 dex over 16,596 sweeps, Vp
+  reproducing the published −3.9 V, the density trend (Spearman 0.82), ramp consistency r = 0.995.
+- **All of Phases 1-7 and 10-13**: the V_float fix, the yield improvement from 22% to 83.5%, the
+  physics-loss ablation with its ten-point recovery finding, the resolution floor.
+
+## How the report must now read
+
+The honest framing is stronger than the one it replaces, because it is a *controlled negative
+result* rather than an uncontrolled positive one:
+
+> We extended the inversion to two electron populations — the first ML Langmuir-probe inversion to
+> do so — and validated it with a negative control confirming it does not report a second
+> population where none exists. Applied to the RAMBHA-LP archive with a matched
+> single-Maxwellian control, we find no evidence that these sweeps require a second population,
+> consistent with Ambili et al. We further show that the local-temperature profile of a *stacked*
+> Langmuir sweep is not by itself evidence for multiple populations, since a distribution of
+> single-population temperatures reproduces the same graded signature — in this archive, sweeps
+> above the 90th percentile in Te contribute 65% of the stacked current 1.9 V below the plasma
+> potential.
+
+That last point is a genuine methodological contribution and applies to anyone stacking Langmuir
+sweeps, which is standard practice in this field.
+
+## The process failure, which is the real lesson
+
+Phases 8 through 14 — the two-population decomposition, the five-parameter network, the training-
+set validation, the spike-and-slab prior, the photoelectron test — is a substantial body of work
+resting on an **uncontrolled measurement made by a script that was thrown away**. Every phase
+after it added rigour to the machinery while never revisiting the foundation.
+
+Two rules follow, and both are now enforced in code rather than intention:
+
+1. **A diagnostic that a conclusion depends on must live in a script and be rerunnable.** The
+   local-Te measurement is now `scripts/11_local_te_diagnostic.py`.
+2. **Every claim of structure needs a matched control that generates the same statistic from the
+   null hypothesis.** The pattern was applied diligently to the network (`test_twopop.py`'s "does
+   not invent a population", the false-hot-fraction metric) and never once to the measurement that
+   motivated building the network at all.
+
+## Phase 15b — Where the real anomaly actually is
+
+Running the diagnostic across all twelve days makes something visible that the ALL-stack row
+hides. Taking the per-day "REAL minus control" excess as nine independent measurements:
+
+| u (V below Vp) | mean excess | sd | days positive | sign-test p | verdict |
+|---|---|---|---|---|---|
+| −1.9 | −0.117 | 0.426 | 3 / 9 | 0.91 | scattered |
+| −1.5 | −0.128 | 0.239 | 2 / 9 | 0.98 | scattered |
+| −1.0 | +0.224 | 0.238 | 7 / 9 | 0.090 | marginal |
+| −0.6 | +0.333 | 0.376 | 8 / 9 | 0.020 | **consistent** |
+| −0.3 | +0.403 | 0.466 | 9 / 9 | **0.002** | **consistent** |
+
+Two distinct conclusions, and they point in different directions.
+
+**At depth, nothing.** At 1.5-1.9 V below Vp the excess is scattered across both signs, positive on
+2 and 3 days of 9, with sign-test p of 0.98 and 0.91. This is where a hot electron tail would
+dominate, and there is no signal there. **The retraction in Phase 15 stands: no second population.**
+
+**Near Vp, a real and coherent deviation.** At 0.3 V below Vp the real curves are flatter than a
+matched single-Maxwellian stack on **nine days out of nine** (p = 0.002 by sign test, mean 2.6
+sigma). At 0.6 V it is eight of nine. This is not noise — it is the most reproducible structure in
+the whole diagnostic, and it appears in both probe-resistance channels independently.
+
+So these sweeps genuinely are not single Maxwellians. The deviation was simply misattributed. It
+lives in the **transition into electron saturation**, which is governed by the sheath-expansion
+exponent, not in the deep retarding tail where an additional electron population lives.
+
+### This converges with the literature audit's top finding
+
+The audit's gap #1, reached independently, was that `probe.sheath_exponent` is pinned at a single
+value of 0.40 while the literature says it must vary: Liu et al. (2023) measure beta in 0.75-1.0
+and find OML's 0.5 overestimates density by ~3x; Ranvier & Lebreton (2023) measure gamma = 0.69 in
+a calibrated chamber and state explicitly that it must be computed **per sweep**.
+
+Two independent lines now point at the same unmodelled physics. The diagnostic says the residual
+structure sits exactly where the exponent acts; the literature says a single fixed exponent is the
+largest systematic error for probes of this kind. That is a far better-supported research direction
+than the two-population hypothesis ever was, and it is cheap to test:
+
+1. Fit alpha per sweep (or per stack) instead of pinning it at 0.40, and re-run this diagnostic.
+   If the near-Vp excess collapses toward zero, the anomaly is explained.
+2. Make alpha a randomised nuisance parameter in `synthetic.py` so the network learns that the
+   exponent varies, rather than that it is 0.40.
+
+The prediction is falsifiable and the diagnostic to test it against already exists. If the excess
+does **not** collapse, something else is going on near Vp and we will have learned that too.
+
+### What the report should now say
+
+The claim is no longer "we found a second electron population". It is the sharper and better
+supported:
+
+> A matched-control diagnostic shows these sweeps deviate systematically from a single Maxwellian —
+> reproducibly on nine of nine observation days — but the deviation sits in the sheath-transition
+> region rather than in the retarding tail, and is therefore attributable to sheath expansion
+> rather than to an additional electron population. Testing a second population explicitly, with a
+> validated negative control, finds no evidence for one.
+
+That is a positive, specific, testable finding plus a controlled negative result. Both are
+defensible, and neither depends on a measurement we cannot reproduce.
+
+## Phase 15c — Four explanations tested, three rejected, anomaly still open
+
+Phase 15b attributed the reproducible near-Vp deviation (positive on 9 of 9 days, sign test
+p = 0.002) to the sheath exponent. **That attribution was wrong**, and so was the replacement.
+
+### Tested and rejected
+
+**Sheath exponent alpha.** Rebuilding the control at alpha = 0.40, 0.70 and 1.00 gives *byte-
+identical* excess: −0.31 / −0.21 / +0.17 / +0.18 / +0.24 in all three cases. Obvious in hindsight:
+alpha acts only for V >= Vp, and the diagnostic window is entirely below Vp. The literature's
+warning about a fixed exponent is real and still worth acting on, but it has nothing to do with
+this measurement.
+
+**Plasma-potential misalignment.** The stack aligns on the *estimated* Vp, and ramp pairs give
+that estimate an error of 0.255 V (6,764 up/down comparisons, sd of the difference 0.360 V) —
+comparable to where the excess sits. Smearing the control by that amount accounts for about a
+third at u = −0.3 (+0.24 -> +0.16) and nothing at u = −0.6 (+0.18 -> +0.19).
+
+**Fit noise inflating the control's temperature spread.** Ramp pairs give a per-sweep Te error of
+0.101 eV against an observed spread of 0.249 eV, so only 9% of the spread is noise. Deconvolving
+it changes the excess from +0.24 to +0.24.
+
+**A thermal-width transition at Vp — and a bug of mine worth recording.** The sharp piecewise
+model has a kink at Vp that real sweeps cannot have. Blending the branches over ~1.3*Te appeared
+to remove the anomaly outright (+0.18 and +0.24 becoming +0.00 and −0.02). **That result was an
+artefact of my own implementation.** Blending the two *currents* linearly contributes `w * sat` in
+the deep retarding region where `sat` is clipped to 1, and with `w = sigmoid(x/k)` that term
+decays as exp(x/k) — slower than the true exp(x) — so it dominates the deep tail and fabricates a
+spurious second population at temperature k*Te. A 10,000% relative change deep in the retarding
+region is what exposed it. Blending the *logarithms* instead makes the correction vanish properly:
+the deep local Te stays at exactly 0.400 eV where the linear blend had corrupted it.
+
+With the correct blend the honest numbers are much smaller: rms excess 0.229 (sharp) -> 0.209 at
+1.3*Te -> 0.197 at 1.6*Te, and at u = −0.3 the excess falls from +0.24 only to +0.13. **A real
+improvement, not an explanation.** Implemented in both forward models behind
+`probe.transition_width_te`, default **0.0** so nothing changes until it is understood.
+
+### Where this leaves the anomaly
+
+Genuinely open. A reproducible, same-sign deviation from a single Maxwellian in the ~0.6 V below
+Vp, present on every observation day and in both probe-resistance channels, not accounted for by
+the temperature distribution, Vp alignment error, Te fit noise, the sheath exponent, or a smooth
+transition at Vp.
+
+The leading remaining hypothesis is a **definitional** one rather than physics, and it should be
+tested before anything else. The classical Te is fitted over 8-10 points within 1 V of the
+*floating* potential — that is, deep in the retarding region. The control then uses that Te to
+generate the curve everywhere, including immediately below Vp. If the real retarding slope varies
+smoothly with bias for any reason at all, a Te fitted deep will not describe the slope near Vp,
+and the control will disagree there *by construction*. The test is direct: refit Te using only
+points within ~0.5 V below Vp and rebuild the control with that. If the near-Vp excess collapses,
+the anomaly is an artefact of where the classical method places its fit window, and the honest
+statement becomes a caveat about the measurement rather than a claim about the Moon.
+
+### Three attributions, three retractions — the pattern
+
+Phase 14 attributed the hot population to photoelectrons; wrong (probe photoemission is constant
+below Vp and is removed by the floor subtraction). Phase 15b attributed the residual to the sheath
+exponent; wrong (alpha does not act below Vp). Phase 15c attributed it to the transition width;
+the supporting result came from a bug in my own blend.
+
+The common failure is proposing a mechanism and testing whether it *can* produce the observed
+signature, rather than first asking where the mechanism is even capable of acting. Both alpha and
+probe photoemission were excluded by one line of reasoning about their domain of action, available
+before any code was written. The discipline that did work throughout was the matched control —
+every real advance in Phases 14 and 15 came from building the null-hypothesis version of a
+statistic and comparing, and every error came from skipping that step.
+
+---
+
+## Phase 16 — The clean test, and the answer: one temperature
+
+`scripts/12_slope_curvature.py` settles the question without stacking, without a forward-model
+fit, and without any of the machinery that went wrong in Phases 14-15c.
+
+### The design
+
+For each sweep **on its own**, fit the retarding slope in two bias windows:
+
+    DEEP  u in [-1.5, -0.8] V below Vp     (electron current ~1.4-13% of its peak)
+    NEAR  u in [-0.6, -0.05] V below Vp    (~13-88% of peak)
+
+A single Maxwellian has one temperature, so `d = Te_near - Te_deep` must be zero up to
+measurement error. No averaging is involved, which removes the entire failure mode of Phase 15:
+stacking sweeps with a spread of temperatures bends the result, but a per-sweep comparison cannot.
+Both windows sit above the noise floor, unlike the 1.5-2.6 V region the per-sweep two-population
+fit needed and could not reach.
+
+Validated before use, on synthetic curves:
+
+| case | Te_deep | Te_near | median d | d > 0 |
+|---|---|---|---|---|
+| single Maxwellian, Te = 0.4 | 0.399 | 0.400 | +0.0008 | 52.0% |
+| single Maxwellian, Te varying 0.3-0.6 **between** sweeps | 0.453 | 0.454 | +0.0008 | 53.5% |
+| two populations, +5% at 1.5 eV | 0.506 | 0.425 | **−0.081** | **0.0%** |
+| two populations, +10% at 2.0 eV | 0.656 | 0.457 | **−0.199** | **0.0%** |
+
+Unbiased on the null, immune to between-sweep temperature spread, and a 5% hot component takes the
+positive fraction from 52% to zero. This is the sensitive, uncontaminated test the project needed
+from the start.
+
+### The selection effect, which decided the answer
+
+The deep window requires `Ie > 3*noise` at u = −1.5 V, where a single Maxwellian sits at
+exp(−1.5/Te) of its peak: 0.7% at Te = 0.3 eV, 2.4% at 0.4 eV, 8% at 0.6 eV. Against noise floors
+of 0.24% (quiet channels) and 1.8% (20 Mohm), **the window is fittable only on sufficiently hot
+sweeps** — so the fitted sample is biased toward large Te_deep, which makes d negative with no hot
+population present.
+
+The first control missed this because it drew from config.yaml's wide uniform prior (median Te
+1.15 eV) and sailed over the threshold. Resampling the archive's own measured (Te, Ne, Vp) exposes
+it to the identical cut: only **33%** of control sweeps pass, and their median true Te rises from
+0.394 to **0.514 eV** — the selection bias, measured directly.
+
+### The result
+
+| | n | d > 0 | p10 | p25 | median | p75 | p90 | sd |
+|---|---|---|---|---|---|---|---|---|
+| REAL | 10046 | **35.7%** | −1.16 | −0.90 | −0.438 | +0.52 | +1.41 | 5.47 |
+| CONTROL (single Maxwellian) | 1965 | **34.7%** | −0.30 | −0.15 | −0.042 | +0.03 | +0.08 | 1.52 |
+
+(Scatter ratio: 3.6x in standard deviation, 6.8x in p10-p90 span. An earlier draft of this entry
+said "ten times at every quantile" -- an overstatement, corrected here.)
+
+**Sign statistic: 35.7% against 34.7%, a difference of +1.1% +- 1.2% = 0.9 sigma. Nothing.**
+
+The median difference of −0.40 eV, which the script first reported as "7.3 standard errors", is an
+artefact of the statistic. The real distribution is about **four times wider in standard deviation and seven to eight
+times wider in interquartile span** than the control, while having the **same fraction above
+zero**. Two distributions with identical sign
+balance and different scale have different medians with no shift in location, so a median gap can
+be pure scale — and quoting it as `excess/(sd/sqrt(n))` is invalid for a distribution with this
+tail. The scale-free sign fraction is the right statistic, and a real hot component moves it
+decisively (52% -> 0% in the validation above). Here it does not move at all. The script's verdict
+now reads the sign statistic and says so.
+
+### Answer
+
+**These sweeps are consistent with a single Maxwellian electron population.** Three independent
+routes agree: the stacked diagnostic with a matched control (Phase 15), the per-day sign test
+(Phase 15b, deep region), and this per-sweep two-window test with a selection-matched control. The
+project's finding is in agreement with Ambili et al., who report a single Maxwellian and no
+multiple slopes.
+
+### A second finding worth reporting on its own
+
+**The real per-sweep scatter is several times larger than our noise model reproduces** (sd 5.47 eV
+against 1.52 eV, a factor of 3.6; p10-p90 spanning 2.57 eV against 0.38 eV, a factor of 6.8). The scatter is symmetric, so it is not a bias,
+but it means single-sweep temperature determinations are far less repeatable than the synthetic
+model implies — consistent with the ramp-pair error on d of 0.66 eV measured from 3,554 up/down
+pairs. Anyone quoting a per-sweep Te from this archive should quote that scatter with it. Whether
+the extra variability comes from the ion-floor subtraction, genuine plasma variation within a
+sweep, or an instrumental effect the forward model omits is not settled here.
+
+### What the report should now claim
+
+> Applying a per-sweep two-window slope test with a selection-matched single-Maxwellian control, we
+> find the RAMBHA-LP retarding characteristics consistent with a single electron temperature
+> (sign statistic 0.9 sigma), in agreement with the published analysis. We show that the
+> local-temperature profile of a *stacked* Langmuir sweep is not evidence for multiple populations,
+> since a distribution of single-population temperatures reproduces the same graded signature, and
+> that a deep-window slope fit selects preferentially hot sweeps unless the control is matched to
+> the measured parameter distribution. We further report that per-sweep temperature scatter in this
+> archive exceeds our instrument noise model by an order of magnitude.
+
+Four negative or methodological results, each with its control, plus a working five-parameter
+inversion whose negative control passes. That is a defensible Independent Study contribution and
+it does not rest on anything we cannot reproduce.
+
+## Phase 16b — The aggregate result was two channels cancelling
+
+The per-channel rows of step 12 should have been read before the conclusion was written. They
+were not, and they change it.
+
+| sample | d > 0 | vs a MIXED control | vs its OWN matched control |
+|---|---|---|---|
+| channel 1 (n = 6,351) | 39.7% | +4.0 sigma | **+3.1 sigma** |
+| channel 2 (n = 3,695) | 28.8% | −4.5 sigma | **−10.0 sigma** |
+| combined (n = 10,046) | 35.7% | 0.9 sigma | — |
+
+**The two channels disagree with each other at 11 sigma, in opposite directions.** The reassuring
+0.9 sigma aggregate is the two cancelling out, not a null result.
+
+The first suspicion was that the control mixed the three probe-resistance noise settings while
+each channel has its own, so the comparison was not like-for-like. Rebuilding a separate control
+per channel — its own (Te, Ne, Vp) resampled from that channel's classical fits, and its noise
+drawn from that channel's *measured* noise-fraction distribution rather than from config — does
+not remove the split. It sharpens it: channel 2 moves from −4.5 to −10.0 sigma against its own
+control. The measured noise fractions are nearly identical (0.0013 and 0.0012 of span), so noise
+is not the explanation either.
+
+### What this does and does not change
+
+**It does not resurrect the second population.** A real hot electron component is a property of
+the plasma, so it would push **both** channels the same way — negative, as the validation table
+shows. Channel 2 goes negative and channel 1 goes *positive*. Two detectors observing the same
+plasma cannot both be right about its shape, so an effect that reverses sign between them is
+instrumental, not lunar. If anything this is stronger evidence against a population signature
+than the aggregate was, because it explains the residual rather than merely failing to find one.
+
+**It does change what may be claimed.** "These sweeps are consistent with a single Maxwellian
+(0.9 sigma)" is not supportable as written — that number is an accident of cancellation. The
+defensible statement is:
+
+> No coherent electron-population signature is present: the residual deviation from a single
+> Maxwellian reverses sign between the two probe channels (+3.1 and −10.0 sigma against
+> channel-matched controls, disagreeing with each other at 11 sigma), which identifies it as a
+> channel-dependent instrumental systematic rather than a property of the plasma. A genuine second
+> population would bias both channels in the same direction.
+
+**It opens a real question.** The two channels return closely agreeing *parameters* — median Tₑ
+0.389 against 0.413 eV, median Nₑ 458 against 443 cm⁻³ — while their *curve shapes* differ
+systematically. Something channel-dependent affects the retarding slope without displacing the
+fitted values much. That is worth pursuing and is not explained here.
+
+### The process note
+
+This is the fourth time in this investigation that a headline number dissolved under
+disaggregation, and the pattern is now unmistakable: the aggregate was computed and reported
+before the subgroups were examined. The per-channel rows were printed in the same output that
+produced the 0.9 sigma figure. The check cost one command and would have caught it before the
+document was written.
+
+---
+
+# Phase 17 — Halving the temperature error
+
+Te was the weakest of the three outputs throughout this project: 0.078 eV on synthetic hold-out
+(~20% at the 0.4 eV this archive occupies) against 0.021 dex for density and 0.14 V for plasma
+potential. Three pieces of work, in order.
+
+## The literature benchmark first: 20% is normal
+
+Two focused searches. The headline is that **20% is at the state of the art for absolute
+planetary Langmuir Te, not below it.** MAVEN LPW's own specification table (Andersson et al.
+2015, Table 7) gives, for sunlit conditions:
+
+| density | relative | absolute |
+|---|---|---|
+| ne >= 10^3 cm^-3 | 5% | **20%** |
+| ne >= 10^2 cm^-3 | 10% | **40%** |
+
+This archive sits at ~450 cm^-3 in sunlight, between those rows. Ergun et al. 2015 quote "20%
+accuracy in most conditions" plainly. The often-cited MAVEN "+-82 K" is **not** comparable: the
+figure caption states the error bars are "goodness of fit only" and the profiles are bin-averaged
+over 2.5 km altitude bins across 28 orbits. Multi-needle probes in Earth orbit cannot infer Te at
+all and take it from IRI instead. **No space Langmuir work surveyed demonstrates sub-10% Te
+against independent truth.** The report's framing should say this.
+
+## But it was not the noise floor
+
+A Fisher-information analysis of this exact measurement (450 cm^-3, 0.4 eV, 240 points, quiet-
+channel noise at 0.24% of span) gives a Cramer-Rao bound of **0.0083 eV, about 2%** — we were 9x
+above it. The same calculation gives the mechanism: **corr(Te, Vp) = +0.93**, against
+corr(Te, logNe) = +0.17. The Te-only bound is 0.0025 eV; the joint bound is 3.3x worse, and
+essentially all of that inflation is the plasma-potential coupling.
+
+Two diagnostics confirmed the picture against the trained model:
+
+**The error is flat in absolute terms across the prior.** Median |Te error| by true Te:
+0.053 eV at 0.05-0.15, 0.092 at 0.15-0.30, 0.077 at 0.30-0.50, 0.067 at 0.50-0.80, 0.077 at
+0.80-1.20, 0.084 at 1.20-2.00. Ratio of the low bins to the high bins: **1.08**. The network
+returns one number regardless of the answer, because it minimises squared error in eV over a
+uniform prior. Also worth noting: **41% of the training set sits above 1.2 eV**, a regime this
+archive never occupies, against 10% in the 0.3-0.5 eV band that it does.
+
+**Fixing the parameterisation alone does not work.** Narrowing the prior to 0.20-0.80 eV and
+training on log10(Te), three seeds, scored in the 0.30-0.50 eV band:
+
+    current (0.05-2.0, linear) : 19.9  22.3  24.6  -> 22.3% +- 2.4%
+    tight   (0.20-0.80, log)   : 20.4  19.6  20.5  -> 20.2% +- 0.5%
+
+2.1 points at 1.5 sigma. Not significant. Worth adopting for the collapse in seed spread
+(2.4% -> 0.5%), not for accuracy. The limit is structural, as the Fisher analysis said.
+
+## The fix that worked
+
+Remove both quantities Te is degenerate with before the network sees the curve:
+
+    u = V - Vp_hat                shift the plasma potential to the origin
+    y = I(u) / I(u = 0)           divide out the density
+    input = log(y) on a fixed u grid
+
+The slope of that input **is** 1/Te. Verified analytically: a clean exponential at Te = 0.4 eV
+returns a slope of 2.500 against a truth of 2.500.
+
+Three configurations, three seeds, scored in the 0.30-0.50 eV band. First at reduced budget
+(10000 sweeps, 60 epochs) to include an oracle arm:
+
+| | seeds | mean |
+|---|---|---|
+| A baseline, raw curve | 36.2 36.9 32.2 | 35.1% +- 2.5% |
+| B aligned on TRUE Vp (ceiling) | 11.8 11.5 10.7 | **11.3% +- 0.5%** |
+| C aligned on PREDICTED Vp | 11.5 15.1 13.0 | **13.2% +- 1.8%** |
+
+Then at full budget (20000 sweeps, 90 epochs), where the baseline reproduces the real pipeline's
+~20% and the Vp estimate reproduces its 0.14 V — making this a fair head-to-head:
+
+| | seeds | mean |
+|---|---|---|
+| A baseline, raw curve | 24.2 21.2 23.0 | 22.8% +- 1.5% |
+| C aligned on PREDICTED Vp | 12.9 11.1 11.5 | **11.8% +- 0.9%** |
+
+**11.0 points, 10.7 sigma, a factor of 1.93.** In absolute terms 0.091 -> 0.047 eV at 0.4 eV.
+C has essentially reached the oracle ceiling of 11.3%, so a realistic Vp estimate costs almost
+nothing — which was the risk the experiment was designed to test, and it did not materialise.
+
+## Implementation, and why it defaults to off
+
+`src/rambhalp/te_refine.py` implements this as a **refinement head, not a rewrite**. Stage one is
+the existing validated three-parameter network, untouched, supplying Vp. Stage two is a small
+separate network seeing only the aligned curve. Nothing in the density or plasma-potential path
+changes, so enabling it cannot disturb those results. The head is trained on curves aligned with
+*predicted* Vp rather than true Vp, so it learns on inputs carrying the same alignment error it
+will meet at inference.
+
+`model.te_refine` defaults to **false**, and that is deliberate. Every number above is synthetic
+hold-out, and Phase 12 of this document records what happened the last time a synthetic
+measurement was trusted alone: the physics-loss term looks harmful on synthetic data (removing it
+improves Te from 0.078 to 0.055 eV) while buying ten percentage points of real-archive recovery.
+The correct decision inverted once real-data checks were applied.
+
+`scripts/14_te_refine_eval.py` applies those checks. The decisive one is **ramp-pair scatter in
+Te**: the two halves of one commanded triangle are independent measurements of the same plasma,
+so a genuinely better Te must be more repeatable between them. A refinement that sharpens
+synthetic accuracy while worsening ramp scatter has learned the simulator rather than the
+instrument, and should be rejected however good the synthetic number looks.
+
+    python scripts/14_te_refine_eval.py
+
+Adopt only if the ramp scatter improves or holds.
+
+## Phase 17b — The real-data test rejects it
+
+`scripts/14_te_refine_eval.py` was written to decide this, and it decided against.
+
+| | baseline | refined | |
+|---|---|---|---|
+| synthetic hold-out, absolute | 0.0746 eV | **0.0485 eV** | better |
+| synthetic, % in 0.30-0.50 eV band | 18.2% | **11.8%** | better, and reproduces scripts/13 |
+| **ramp-pair scatter in Te (14,931 pairs)** | **0.0076 eV** | 0.0101 eV | **32% WORSE** |
+| agreement with classical, median offset | −0.0025 eV | −0.0481 eV | 19x larger bias |
+| agreement with classical, median abs | 0.0805 eV | 0.0809 eV | unchanged |
+
+The synthetic gain reproduced exactly as predicted. **The real-data repeatability got 32%
+worse, and a systematic −0.048 eV offset against the independent classical estimator appeared
+where there had been none.** By the criterion set before the test was run, this is not adopted.
+
+### First: is the ramp test fair to the refinement?
+
+A model predicting nearly the same Te for every sweep would score perfect ramp repeatability
+while carrying no information, which would rig this comparison in the baseline's favour. Checked:
+baseline Te spans p10 = 0.120 to p90 = 0.580 eV across the archive with a ramp scatter of
+0.0076 eV — a scatter-to-spread ratio of 0.017. It is repeatable *and* informative, and 13x more
+repeatable than the classical fit's 0.101 eV. The test is fair and the refinement genuinely
+fails it.
+
+### Leading hypothesis, with its own supporting evidence
+
+The alignment window is `u in [-2.0, +0.6] V`. That is centred on precisely the bias region where
+this archive is independently known to depart from the forward model:
+
+- **Phase 15b**: against a matched single-Maxwellian control, the real stacked curves show a
+  positive excess at u = −0.3 and −0.6 V on **nine of nine observation days** (sign test
+  p = 0.002), while the deep region 1.5-1.9 V below Vp shows nothing.
+- **Phase 16b**: that same near-Vp excess **reverses sign between the two probe channels**
+  (+3.1σ and −10.0σ against channel-matched controls, disagreeing with each other at 11σ),
+  which marks it instrumental rather than plasma.
+
+So the refinement reads Te from exactly the window where the real curves are known to disagree
+with the simulator, and where the disagreement is channel-dependent. The baseline, reading all
+240 raw points, spreads its dependence across the sweep and is less exposed. That would explain
+both symptoms at once: a clean synthetic gain, and worse real repeatability plus a new systematic
+offset.
+
+**This is a hypothesis, not a finding.** Three mechanisms proposed earlier in this project were
+wrong for reasons available before the code was written, so it is stated as testable rather than
+established. The test is now one flag:
+
+    python scripts/14_te_refine_eval.py --u-window -2.6 -0.8
+
+`te_refine.set_window()` moves the alignment window below the deviant region; the reference point
+for the density normalisation follows it. If ramp scatter recovers to baseline or better while
+the synthetic gain largely survives, the hypothesis holds and the refinement becomes adoptable
+with a corrected window. If ramp scatter stays worse, the idea does not transfer to this
+instrument and should be reported as a negative result — which is still worth reporting, because
+the synthetic gain is real and large, and the failure localises the sim-to-real defect.
+
+### What this is worth to the report either way
+
+This is the second clean demonstration in this project that **a synthetic hold-out cannot
+adjudicate a change whose risk is sim-to-real** — the first being the physics-loss ablation of
+Phase 12, where the conclusion also inverted. Two independent instances, in opposite directions:
+there, a term that looked harmful on synthetic data bought ten points of real recovery; here, a
+change that halves synthetic error costs a third of the real repeatability. Together they make
+the methodological point far better than either alone.
+
+## Phase 17c — Hypothesis refuted, and the result is better than the hypothesis
+
+The window test came back decisively negative, on every metric at once:
+
+| window | synthetic abs | synthetic % in band | ramp scatter | classical median offset | classical median abs |
+|---|---|---|---|---|---|
+| baseline (no refinement) | 0.0746 eV | 18.2% | **0.0076 eV** | −0.0025 eV | 0.0805 eV |
+| refined, u in [−2.0, +0.6] | **0.0485 eV** | **11.8%** | 0.0101 eV (1.32x) | −0.0481 eV | 0.0809 eV |
+| refined, u in [−2.6, −0.8] | 0.0872 eV | 20.5% | 0.0175 eV (**2.30x**) | +0.0746 eV | 0.1404 eV |
+
+Moving the window below the region where the model is known to be wrong made everything worse,
+**including the synthetic accuracy** — 0.0872 eV, worse than not refining at all. That rules out
+the Phase 17b hypothesis cleanly: if the near-Vp model defect were the whole story, the deeper
+window should have traded a little synthetic accuracy for better real repeatability. It traded
+away both.
+
+### The actual reason, which is a sharper finding
+
+The deep window is signal-starved. Electron current falls as exp(u/Te), so at Te = 0.4 eV:
+
+| u (V below Vp) | I / I_peak | quiet channels (0.24%) | 20 Mohm (1.8%) |
+|---|---|---|---|
+| −0.3 | 47% | above noise | above noise |
+| −0.8 | 13.5% | above | above |
+| −1.5 | 2.4% | above | **under** |
+| −2.0 | 0.67% | **under** | **under** |
+| −2.6 | 0.15% | **under** | **under** |
+
+The default window [−2.0, +0.6] spans 0.7% to 100% of peak and contains the temperature
+information. The deeper window [−2.6, −0.8] spans 0.15% to 13.5% and is mostly beneath the noise
+floor on every channel.
+
+**So on this instrument the temperature signal and the sim-to-real defect occupy the same bias
+region, and cannot be separated by choosing a window.** Above ~0.8 V below Vp there is signal but
+the forward model is demonstrably wrong (Phase 15b: excess on 9 of 9 days, p = 0.002; Phase 16b:
+sign-reversing between channels at 11 sigma). Below it the model is clean but the current is
+under the noise. There is no window that is both.
+
+That is a quantitative, instrument-specific explanation for why Te is the hardest of the three
+parameters here, and it is a better result than the hypothesis it replaced.
+
+### Verdict
+
+**The refinement is not adopted.** `model.te_refine` stays false. The code and both evaluation
+scripts remain, because the negative result is worth reporting and worth reproducing.
+
+What stands:
+
+- The degeneracy diagnosis is correct and quantified: corr(Te, Vp) = +0.93, inflating the
+  achievable Te error 3.3x, with a Cramer-Rao bound of ~0.008 eV against 0.078 eV achieved.
+- Removing the degeneracy **does** halve synthetic Te error — 22.8% to 11.8%, 10.7 sigma over
+  three seeds at full budget. The mechanism is real.
+- It does **not** transfer to the instrument, and the reason is now measured rather than guessed.
+- Te improvement on this archive is therefore blocked by the forward model's accuracy near the
+  plasma potential, not by the estimator. Fixing the near-Vp model — the anomaly still open from
+  Phase 15c — is the prerequisite, not more network work.
+
+### Fourth retraction, and the honest tally
+
+Phase 14 attributed the hot population to photoelectrons: wrong. Phase 15b attributed the
+residual to the sheath exponent: wrong, and excludable by inspection. Phase 15c attributed it to
+transition width, on the strength of a bug in my own blend. Phase 17b attributed this failure to
+the near-Vp window: wrong, and the test that refuted it took ten minutes.
+
+Every one of those was caught by a control or a cheap test, and every one produced a better
+finding than the hypothesis would have. The pattern worth keeping is not the hypotheses — it is
+that each was made falsifiable and then actually falsified, at low cost, before anything was
+adopted or written into the report.

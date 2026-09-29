@@ -90,7 +90,8 @@ def _density(Ie0, Te_eV, cfg):
     return float(4.0 * Ie0 / (p["q_e"] * A * v_th) / 1e6)
 
 
-def fit_two_populations(sw, cfg: dict, base=None) -> dict | None:
+def fit_two_populations(sw, cfg: dict, base=None, hot_band=None,
+                        min_hot_pts=None) -> dict | None:
     """Resolve one sweep into a cold and a hot Maxwellian electron population.
 
     `base` may be a ClassicalResult already computed for this sweep, to avoid refitting; it
@@ -103,6 +104,14 @@ def fit_two_populations(sw, cfg: dict, base=None) -> dict | None:
     ccfg = cfg["classical"]
     alpha = float(cfg["probe"].get("sheath_exponent", 1.0))
     nfit = int(ccfg["min_fit_points"])
+
+    # The hot-tail window and its minimum point count are overridable so a caller can measure
+    # how sensitive the decomposition is to them. Defaults reproduce the archive result exactly.
+    # They matter more than they look: the default band is 1 V wide and the binned grid is
+    # ~0.21 V, so it holds only about five usable points against a floor of six -- which is why
+    # the decomposition silently declines on a large share of otherwise good sweeps.
+    band = _HOT_BAND if hot_band is None else tuple(hot_band)
+    min_hot = max(nfit, 6) if min_hot_pts is None else int(min_hot_pts)
 
     r = base if base is not None else _classical.fit_sweep(sw, cfg)
     if r.failed or not np.isfinite(r.Vp_V) or not np.isfinite(r.V_float):
@@ -124,8 +133,8 @@ def fit_two_populations(sw, cfg: dict, base=None) -> dict | None:
     span = float(np.ptp(Ie)) + 1e-30
 
     # Stage 1 — the hot tail, alone in the deep retarding region.
-    hot = (u >= _HOT_BAND[0]) & (u <= _HOT_BAND[1]) & (Ie > 3.0 * noise)
-    if hot.sum() < max(nfit, 6):
+    hot = (u >= band[0]) & (u <= band[1]) & (Ie > 3.0 * noise)
+    if hot.sum() < min_hot:
         return None
     ah, bh = np.polyfit(V[hot], np.log(Ie[hot]), 1)
     if ah <= 0:
