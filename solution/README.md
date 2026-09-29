@@ -1,113 +1,136 @@
-# RAMBHA-LP Physics-Informed ML Inversion — Complete Solution
+# Physics-Informed ML Inversion of Chandrayaan-3 Langmuir Probe Sweeps
 
-**Author:** Sunil (M.Tech Independent Study, IIIT Hyderabad)
-**Supervisor:** Dr. Rama Chandra Pillutla
-**What this is:** A complete, runnable, submission-ready implementation of a physics-informed
-machine-learning inversion of Chandrayaan-3 RAMBHA-LP Langmuir-probe I–V sweeps. It recovers
-electron density (Ne), electron temperature (Te) and plasma potential (Vp) from sweeps —
-including sweeps the classical OML fit fails on.
+Recovering electron density, electron temperature and plasma potential from the RAMBHA-LP
+instrument on the Chandrayaan-3 lunar lander — including the 44% of sweeps that classical
+curve-fitting cannot handle.
 
-> This folder is the **safety-net deliverable**. It runs end-to-end and produces every number,
-> table and figure the report needs. Your 50 day-scripts remain the *learning* track; this is
-> the *submittable* track that does not depend on your live progress.
+**Sunil Jadaun** · M.Tech Independent Study, IIIT Hyderabad · Supervisor: Dr. Rama Chandra Pillutla
 
 ---
 
-## The pipeline in one picture
+## What this does
 
-```
-RAMBHA-LP PDS4 archive (real lunar data, local)
-        │
-        ▼
-[1] io_pds + preprocess ── parse raw/rawA/rawB, segment sweeps, bin, convert to current
-        │
-        ▼
-[2] classical ──────────── OML baseline fit on every sweep → "where classical FAILS" map
-        │
-        ▼
-[3] synthetic + physics ── generate labelled OML sweeps (Ne,Te,Vp known)
-        │
-        ▼
-[4] model + train ──────── PINN inversion net trained with supervised + physics loss
-        │                    (optionally MAVEN-pretrained — [4b] maven)
-        ▼
-[5] infer ──────────────── apply the net to the sweeps classical could NOT fit → recovered count
-        │
-        ▼
-[6] validate ───────────── hop blind-test + uncertainty (honest, no lunar ground truth)
-        │
-        ▼
-[7] figures ────────────── all report figures + tables
-```
+RAMBHA-LP is a Langmuir probe: a sphere on a boom above the lunar surface whose voltage is swept
+while the collected current is measured. The shape of that current curve encodes three plasma
+parameters. The standard way to extract them is to fit straight lines to parts of the curve —
+which works on clean sweeps and fails on messy ones.
 
-## Quick start (laptop, CPU is fine)
+This project trains a neural network on synthetic sweeps generated from an orbital-motion-limited
+forward model, adds a physics-reconstruction term to the loss, and applies it to the real archive.
+It is validated three ways, none of which requires ground truth (there is none for lunar plasma).
+
+## Results
+
+**Coverage.** 29,862 sweeps parsed from 144 PDS4 files.
+
+| | sweeps | share |
+|---|---|---|
+| classical fit succeeds | 16,596 | 55.6% |
+| classical fails | 13,266 | 44.4% |
+| …recovered by the network | 8,343 | 62.9% of failures |
+| **combined usable** | **24,939** | **83.5%** |
+
+**Accuracy** on 4,000 held-out synthetic sweeps: density 0.021 dex (~5%), temperature 0.078 eV
+(~20% at the archive's typical 0.4 eV), plasma potential 0.141 V.
+
+**Validation without ground truth.**
+
+- *Independent method.* On the 16,596 sweeps both methods fit, density agrees to 0.0048 dex
+  (~1.1%) — between a neural network trained only on simulation and a hand-written curve fit
+  that shares no code with it.
+- *Instrument against itself.* Every commanded sweep is a triangle, so its two halves are
+  independent measurements seconds apart: 12,418 pairs agree to 0.011 dex (2.6%), r = 0.995,
+  with no directional bias.
+- *Blind test.* The network never sees the date. Its recovered densities nonetheless reconstruct
+  the mission-long trend, rising 246 → 493 cm⁻³ over eleven days (Spearman 0.78).
+
+**Against the published analysis** (Ambili et al. 2025, MNRAS 542, 2647): recovered values fall
+inside all three published ranges; for 2 September the pipeline returns 456 cm⁻³ against a
+published 478, and a plasma potential of −3.9 V against −3.9 V.
+
+## What is novel here
+
+**A two-population Langmuir inversion with a working negative control.** Every ML Langmuir-probe
+paper surveyed assumes a single Maxwellian electron distribution, and no published inversion of a
+*planetary* Langmuir probe uses machine learning at all. This one predicts five parameters (cold
+and hot density and temperature, plus plasma potential) and — the part that makes it meaningful —
+declines to report a second population when none exists (1.7% false rate, verified).
+
+**Applied to this archive it returns a negative result**, in agreement with the published
+analysis. Getting there produced two findings of wider use:
+
+- *The standard diagnostic for multiple electron populations is not valid evidence.* Averaging
+  sweeps that each have a different temperature bends the averaged curve exactly like a second
+  population would. On this archive the hottest 10% of sweeps supply 65% of the signal in the
+  region where the inference is made. A matched single-Maxwellian control reproduces the entire
+  apparent signal.
+- *A synthetic hold-out cannot adjudicate a sim-to-real question.* Demonstrated twice, in
+  opposite directions. The physics-loss term looks actively harmful on synthetic data (removing
+  it improves temperature error 0.078 → 0.055 eV) while buying ten percentage points of real
+  archive recovery. Conversely, a temperature transformation that halves synthetic error
+  (22.8% → 11.8%, 10.7σ over three seeds) degrades real repeatability by 32% and was rejected.
+
+**A quantified account of why temperature is the hard parameter.** A Fisher-information analysis
+gives corr(Te, Vp) = +0.93 — temperature and plasma potential are nearly indistinguishable in
+this measurement — inflating the achievable error 3.3× over the temperature-only bound. On this
+instrument the temperature signal and the forward model's error occupy the same region of the
+curve and cannot be separated by choosing a fit window.
+
+## Running it
 
 ```bash
-cd solution
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-# edit config.yaml -> data.archive_root to your RAMBHA path (default already set)
-python scripts/run_all.py            # runs the whole pipeline, writes outputs/
+# point config.yaml -> data.archive_root at your RAMBHA-LP PDS4 archive
+python scripts/run_all.py --no-maven        # full pipeline -> outputs/
+python -m pytest tests/ -q                  # sanity tests
 ```
 
-Everything lands in `outputs/` (tables, model checkpoint, figures). Nothing outside `solution/`
-is modified.
-
-## Where GPU (Kaggle / Colab) helps
-
-Only steps **[4] PINN training** and **[4b] MAVEN pretrain** benefit from a GPU, and even those
-run on a laptop in a few minutes for the default config. Use `notebooks/` when you want the
-bigger/longer training runs. See `GUIDE.md` §7–§8 for the exact upload-train-download loop.
-
-## Read this first
-
-**`GUIDE.md`** is the hand-held, step-by-step walkthrough from a blank machine to a submitted
-project — every command explained, every decision justified, with the Kaggle/Colab path spelled
-out. If you read one file, read that one.
+CPU is sufficient; training takes a few minutes. `GUIDE.md` walks through it step by step.
 
 ## Layout
 
 ```
-solution/
-├── README.md              you are here
-├── GUIDE.md               ★ the detailed start-to-finish guide
-├── requirements.txt       pip dependencies
-├── environment.yml        conda alternative
-├── config.yaml            all paths + hyperparameters (edit this, not the code)
-├── Makefile               shortcuts (make baseline / synth / train / apply / figures / all)
-├── src/rambhalp/          the library (importable package)
-│   ├── config.py          loads config.yaml
-│   ├── io_pds.py          PDS4 raw/rawA/rawB + ops + gain-table reader
-│   ├── preprocess.py      sweep segmentation, binning, current conversion
-│   ├── classical.py       classical OML baseline fit + failure classification
-│   ├── physics.py         OML forward model + physics-informed loss
-│   ├── synthetic.py       labelled synthetic sweep generator
-│   ├── model.py           PyTorch inversion network (+ MC-dropout uncertainty)
-│   ├── train.py           training loop
-│   ├── maven.py           MAVEN download + pretrain + transfer (with fallback)
-│   ├── infer.py           apply model to real sweeps, recover failing ones
-│   ├── validate.py        hop blind-test + uncertainty audit
-│   └── figures.py         all report figures + tables
-├── scripts/               thin CLI wrappers you actually run
-│   ├── 01_build_classical_baseline.py
-│   ├── 02_generate_synthetic.py
-│   ├── 03_train_pinn.py
-│   ├── 04_maven_pretrain.py
-│   ├── 05_apply_and_recover.py
-│   ├── 06_validate_hop.py
-│   ├── 07_make_figures.py
-│   └── run_all.py         orchestrates 01→07
-├── notebooks/             GPU training on Kaggle / Colab
-│   ├── kaggle_train_pinn.ipynb
-│   ├── colab_train_pinn.ipynb
-│   └── maven_pretrain.ipynb
-├── tests/                 sanity tests (pytest)
-└── outputs/               created at runtime (git-ignored)
+src/rambhalp/
+  io_pds.py preprocess.py     PDS4 parsing, sweep segmentation, binning
+  classical.py                classical OML fit + failure classification
+  physics.py synthetic.py     forward model, labelled synthetic sweep generator
+  model.py train.py infer.py  network, training loop, application to real sweeps
+  twopop.py                   classical two-population decomposition
+  te_refine.py                plasma-potential-aligned temperature head (evaluated, not adopted)
+  validate.py figures.py      validation checks and report figures
+
+scripts/
+  01-07   the pipeline: baseline -> synthetic -> train -> apply -> validate -> figures
+  08      physics-loss ablation, scored on synthetic AND real-data metrics
+  09      is the second population plasma, or photoelectrons?
+  10      second population vs baseline artefact: model comparison
+  11      local-temperature diagnostic WITH its matched single-Maxwellian control
+  12      per-sweep slope-curvature test (no averaging, selection-matched control)
+  13      temperature / plasma-potential decoupling experiment
+  14      does the temperature refinement survive real sweeps?
 ```
 
-## Honesty note (carried from the project's own rules)
+Every diagnostic a conclusion depends on is a numbered script and re-runs with one command.
+`CODE_REVIEW.md` is the full engineering log, including the claims that were withdrawn and why.
 
-There is **no ground truth** for lunar near-surface plasma. Every recovered number is framed
-with uncertainty; the model is validated against physics self-consistency, the classical fit
-where it *does* work, and the Aug-26 lander "hop" as a natural blind test — not against a truth
-we do not have. The code never claims a recovery it cannot show a number for.
+## Honest limitations
+
+- **No absolute calibration is possible.** There is no second instrument on the lander and no
+  lunar equivalent of ground radar. Every number here is consistency, not verified accuracy.
+  For scale: Swarm at Earth discovered a 400 K temperature bias only because ground radar
+  existed to reveal it.
+- The sheath-expansion exponent is held at a single fitted value; two independent studies report
+  it varies per sweep and that a wrong fixed value can bias density by a factor of three.
+- Photoemission from the probe and lander is absent from the forward model.
+- A channel-dependent systematic distorts the curve near the plasma potential: the two probe
+  channels disagree at 11σ while returning nearly identical density and temperature. Unexplained.
+- Per-sweep temperature scatter exceeds the noise model by a factor of ~3.6, so single-sweep
+  temperatures are far less repeatable than a synthetic accuracy figure implies.
+- MAVEN-to-Moon transfer learning was implemented and abandoned: it degraded held-out performance
+  ~15×. Reported as a negative result about this particular attempt, not a general claim.
+
+## Data
+
+RAMBHA-LP PDS4 archive, ISRO Science Data Archive (PRADAN). Not redistributed here; set
+`data.archive_root` in `config.yaml` to your local copy.

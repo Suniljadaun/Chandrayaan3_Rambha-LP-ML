@@ -19,3 +19,23 @@ venv/
 Chandrayaan-3/
 rambha-env/
 *.xlsx
+
+# --- solution/ pipeline outputs -------------------------------------------------------
+# Regenerable by `python scripts/run_all.py`, and large: outputs/ and outputs_2pop/ are
+# ~165 MB each, dominated by cached sweeps, the synthetic training set and per-sweep CSVs.
+# The numbers that matter are quoted in CODE_REVIEW.md and the report; the artefacts are not
+# worth version-controlling and would make the repo unusable to clone.
+solution/outputs/
+solution/outputs_2pop/
+
+# Model checkpoints — binary, regenerable, and large.
+*.pt
+*.npz
+*.pkl
+
+# Pre-edit backups kept by hand before git existed. Git supersedes them; they are left on
+# disk but not committed, so history lives in one place rather than two.
+solution/backups/
+
+# Scratch
+solution/_to_delete/
