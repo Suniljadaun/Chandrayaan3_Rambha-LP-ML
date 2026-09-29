@@ -89,8 +89,8 @@ python -m pytest tests/ -q                  # sanity tests
 
 CPU is sufficient; training takes a few minutes. `solution/GUIDE.md` walks through it step by step.
 
-The `day01_*` / `day02_*` files at the repository root are early exploratory scripts kept for
-provenance; the finished pipeline is entirely under `solution/`.
+`exploration/` holds the early day-by-day scripts, kept for provenance; the finished pipeline is
+entirely under `solution/`.
 
 ## Layout
 
