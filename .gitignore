@@ -39,3 +39,9 @@ solution/backups/
 
 # Scratch
 solution/_to_delete/
+
+# Superseded drafts and early demo outputs, kept on disk only
+archive/
+
+# Published papers used as references (not ours to redistribute)
+references/
