@@ -115,6 +115,7 @@ solution/scripts/
   12      per-sweep slope-curvature test (no averaging, selection-matched control)
   13      temperature / plasma-potential decoupling experiment
   14      does the temperature refinement survive real sweeps?
+  15      are the MC-dropout error bars honest? (synthetic truth + real up/down pairs)
 ```
 
 Every diagnostic a conclusion depends on is a numbered script and re-runs with one command.
