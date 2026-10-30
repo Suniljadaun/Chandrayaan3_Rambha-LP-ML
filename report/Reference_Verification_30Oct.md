@@ -21,3 +21,19 @@ All 15 references in the final report were checked against a publisher, journal 
 | 15 | Ranvier & Lebreton 2023, GI 12, 1–13, 10.5194/gi-12-1-2023 | gi.copernicus.org | Verified |
 
 The DOIs of references 4, 7, 11, 13 and 14 were also resolved through Crossref on 30 Oct 2026.
+
+## What each cited claim was checked against (second pass, 30 Oct 2026)
+
+Read directly in the paper's text:
+- Andersson et al. 2015: Table 7 is headed "Ne accuracy" and gives expected performance, so it was removed as support for temperature accuracy. The paper is still cited for the instrument.
+- Liu et al. 2023: regression on simulated needle-probe currents, NorSat-1 application, density about three times too large with beta = 0.5.
+- Ranvier & Lebreton 2023: cylindrical probes, exponent 0.69 rather than 0.5, should be computed for each curve. It gives no density bias factor.
+- Manju et al. 2026: hop on 2 September, 478 / 26 / 1,100 cm⁻³, -3.9 V on 2 September.
+- RAMBHA-LP user manual: rawB photoemission removal by the Johansson et al. 2017 method, 0.1 V steps.
+
+Confirmed only through a search excerpt, abstract or another paper. Check the original before relying on these:
+- Ergun et al. 2015: "better than 20% accuracy in most conditions" (search excerpt of the paper).
+- Manju et al. 2025: 380-600 cm⁻³ and 3,000-8,000 K (abstract via search, also quoted in Manju 2026). Full text was blocked (HTTP 403).
+- Lomidze et al. 2018: about 400 K temperature overestimate, as reported by a Swarm data-quality preprint (gi-2021-17). Full text was not available. The earlier 15-20% figure could not be confirmed and was removed.
+
+Removed because no source could be found: a plasma potential "near -3 V" attributed to Manju et al. 2025, and "soon after local sunrise" as the reason for low early densities.

@@ -47,7 +47,7 @@ It is validated three ways, none of which requires ground truth (there is none f
 **Against the published analysis** (Manju et al. 2025, MNRAS 542, 2647): median temperature and
 plasma potential, and daily median density from 27 August onwards, fall inside the published
 ranges (density on the first three days is lower); for 2 September the pipeline returns 456 cm⁻³ against a
-published 478, and a plasma potential of −3.9 V against −3.9 V.
+published 478, and a plasma potential of −3.7 V (classical fit −3.9 V) against −3.9 V.
 
 ## What is novel here
 
