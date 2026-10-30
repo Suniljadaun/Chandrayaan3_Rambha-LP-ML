@@ -73,7 +73,7 @@ analysis. Getting there produced two findings of wider use:
 
 **A quantified account of why temperature is the hard parameter.** A Fisher-information analysis
 gives corr(Te, Vp) = +0.92 — temperature and plasma potential are nearly indistinguishable in
-this measurement — inflating the achievable error 3.3× over the temperature-only bound. On this
+this measurement — inflating the achievable error about 2.5× over the bound with the plasma potential known. On this
 instrument the temperature signal and the forward model's error occupy the same region of the
 curve and cannot be separated by choosing a fit window.
 
