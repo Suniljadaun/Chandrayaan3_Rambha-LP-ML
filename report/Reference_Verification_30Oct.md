@@ -32,3 +32,12 @@ Confirmed only through a search excerpt or abstract. Check the original before r
 Title and authors confirmed; the general statements cited to them were not checked against the text: Hutchinson 2002, Raissi et al. 2019, Gal & Ghahramani 2016, Mott-Smith & Langmuir 1926, Johansson et al. 2017, Poppe & Horányi 2010.
 
 Removed from the report: Andersson et al. 2015, Karniadakis et al. 2021, Lomidze et al. 2018 and Ranvier & Lebreton 2023, together with the statements that relied on them. Also removed because no source could be found: a plasma potential "near -3 V" attributed to Manju et al. 2025, and "soon after local sunrise" as the reason for low early densities.
+
+## Results rerun on 30 Oct 2026
+
+- Table 11: scripts/14_te_refine_eval.py reproduced every value.
+- Table 10: scripts/13_vp_decoupling.py --n-synth 20000 --epochs 90 gave the 22.3%, 11.7% and 12.2% now in the report. An earlier record gave 22.8% and 11.8% for the first and third rows.
+- Fisher figures: the original code was not saved. scripts/16_fisher_bound.py recalculates them (1.5%, 92%, factor of 2.5), replacing the earlier 2%, 93% and 3.3.
+- Scripts 11, 12 and 15 reproduced their saved tables, 15 within dropout randomness.
+
+Not rerun, and resting on the project record only: the Mars pre-training result (scripts 03 and 04 would overwrite outputs), and the 22.3% and 20.2% log-temperature comparison, for which no script exists.

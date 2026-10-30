@@ -68,11 +68,11 @@ analysis. Getting there produced two findings of wider use:
 - *A synthetic hold-out cannot adjudicate a sim-to-real question.* Demonstrated twice, in
   opposite directions. The physics-loss term looks actively harmful on synthetic data (removing
   it improves temperature error 0.078 → 0.055 eV) while buying ten percentage points of real
-  archive recovery. Conversely, a temperature transformation that halves synthetic error
-  (22.8% → 11.8%, 10.7σ over three seeds) degrades real repeatability by 32% and was rejected.
+  archive recovery. Conversely, a temperature transformation that nearly halves synthetic error
+  (22.3% → 12.2%, about 13σ over three seeds) degrades real repeatability by 32% and was rejected.
 
 **A quantified account of why temperature is the hard parameter.** A Fisher-information analysis
-gives corr(Te, Vp) = +0.93 — temperature and plasma potential are nearly indistinguishable in
+gives corr(Te, Vp) = +0.92 — temperature and plasma potential are nearly indistinguishable in
 this measurement — inflating the achievable error 3.3× over the temperature-only bound. On this
 instrument the temperature signal and the forward model's error occupy the same region of the
 curve and cannot be separated by choosing a fit window.
@@ -117,6 +117,7 @@ solution/scripts/
   13      temperature / plasma-potential decoupling experiment
   14      does the temperature refinement survive real sweeps?
   15      are the MC-dropout error bars honest? (synthetic truth + real up/down pairs)
+  16      what is the Fisher-information bound on Te, and how much does Vp inflate it?
 ```
 
 Every diagnostic a conclusion depends on is a numbered script and re-runs with one command.

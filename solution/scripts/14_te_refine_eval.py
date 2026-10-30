@@ -6,7 +6,7 @@ WHY THIS SCRIPT EXISTS AND WHY IT IS NOT OPTIONAL
 -------------------------------------------------
 scripts/13_vp_decoupling.py established, on synthetic hold-out data at full training budget over
 three seeds, that aligning the curve on the plasma potential and normalising by the density
-halves the temperature error: 22.8% +- 1.5% -> 11.8% +- 0.9%, a factor of 1.93 at 10.7 sigma.
+nearly halves the temperature error: 22.3% +- 1.3% -> 12.2% +- 0.2%, about 13 sigma.
 
 That is a synthetic result, and this project has already been burned by exactly that distinction.
 The physics-loss ablation (scripts/08) found a term that looks actively harmful on synthetic

@@ -9,8 +9,8 @@ hold-out (~20% at the 0.4 eV this archive occupies) against 0.021 dex for densit
 the plasma potential.
 
 The cause is a degeneracy, not noise. A Fisher-information analysis of this measurement gives
-corr(Te, Vp) = +0.93 — the network cannot separate a slightly hotter plasma from a slightly
-shifted plasma potential — and that single correlation inflates the achievable Te error by 3.3x
+corr(Te, Vp) = +0.92 — the network cannot separate a slightly hotter plasma from a slightly
+shifted plasma potential — and that single correlation inflates the achievable Te error by about 2.5x
 over the Te-only bound. Two supporting diagnostics:
 
   * the error is FLAT in absolute terms across the training prior (0.053 eV at Te = 0.1 eV,
@@ -33,10 +33,10 @@ network is then reading a quantity that no longer competes with anything else.
 MEASURED RESULT (scripts/13_vp_decoupling.py, 20000 training sweeps, 90 epochs, 3 seeds,
 scored inside the 0.30-0.50 eV band where this archive actually sits):
 
-    baseline, raw curve          24.2  21.2  23.0  -> 22.8% +- 1.5%
-    aligned on a PREDICTED Vp    12.9  11.1  11.5  -> 11.8% +- 0.9%
+    baseline, raw curve          21.2  22.0  23.7  -> 22.3% +- 1.3%
+    aligned on a PREDICTED Vp    11.9  12.4  12.2  -> 12.2% +- 0.2%
 
-    11.0 points, 10.7 sigma, a factor of 1.93. In absolute terms 0.091 -> 0.047 eV at 0.4 eV.
+    10.1 points, about 13 sigma, a factor of 1.83.
 
 An oracle run aligned on the TRUE Vp reaches 11.3%, so with the full-budget Vp estimate
 (0.127-0.149 V here, matching the pipeline) the alignment error costs essentially nothing: the

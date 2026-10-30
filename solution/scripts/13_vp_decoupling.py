@@ -32,9 +32,9 @@ Two diagnostics locate the cause.
    having for reproducibility, but the accuracy does not move.
 
 So the limit is structural, not a parameterisation artefact. A Fisher-information analysis of
-this measurement gives corr(Te, Vp) = +0.93: the network cannot separate a slightly hotter
-plasma from a slightly shifted plasma potential. That single correlation inflates the achievable
-Te error by 3.3x over the Te-only bound.
+this measurement (scripts/16_fisher_bound.py) gives corr(Te, Vp) = +0.92: the network cannot
+separate a slightly hotter plasma from a slightly shifted plasma potential. Not knowing Vp
+inflates the achievable Te error by about 2.5x.
 
 THE FIX BEING TESTED
 --------------------
@@ -50,14 +50,16 @@ Three configurations, three seeds each, all scored inside the 0.30-0.50 eV band:
     B  ceiling     aligned on the TRUE Vp -- the best the idea could possibly do
     C  realistic   aligned on a PREDICTED Vp -- what is actually available on real sweeps
 
-B measures whether the 3.3x headroom is real. C measures how much survives once the Vp estimate
+B measures whether that headroom is real. C measures how much survives once the Vp estimate
 carries its own error. If C lands near B the transformation is worth building into the pipeline;
 if C collapses back to A, the Vp error eats the gain and the idea should be dropped rather than
 shipped.
 
-Needs torch. Prints a table; changes nothing in the pipeline.
+Needs torch. Prints a table; changes nothing in the pipeline. Table 10 of the report is the full
+training budget: --n-synth 20000 --epochs 90.
 """
 import _bootstrap as B_
+import argparse
 import numpy as np
 import torch
 import torch.nn as nn
@@ -113,6 +115,10 @@ def band(pred, true):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--n-synth", type=int, default=10000)
+    ap.add_argument("--epochs", type=int, default=60)
+    args = ap.parse_args()
     cfg = load_config(); cfg["synthetic"]["two_population"] = False
     V = np.asarray(common_grid(cfg), float)
     print("=" * 74)
@@ -120,16 +126,16 @@ def main():
     print("=" * 74)
     rows, vperr = {}, []
     for seed in (0, 1, 2):
-        Xtr, Ytr, _ = synthetic.make_dataset(10000, cfg, seed=20 + seed)
+        Xtr, Ytr, _ = synthetic.make_dataset(args.n_synth, cfg, seed=20 + seed)
         Xv, Yv, _ = synthetic.make_dataset(2500, cfg, seed=700 + seed)
         Te_tr, Te_v = Ytr[:, 1], Yv[:, 1]
         Vp_tr, Vp_v = Ytr[:, 2], Yv[:, 2]
 
-        a = fit(Xtr, Te_tr, Xv, seed)
-        b = fit(align(Xtr, V, Vp_tr), Te_tr, align(Xv, V, Vp_v), seed)
-        vh_v = fit(Xtr, Vp_tr, Xv, seed)
-        vh_tr = fit(Xtr, Vp_tr, Xtr, seed)
-        c = fit(align(Xtr, V, vh_tr), Te_tr, align(Xv, V, vh_v), seed)
+        a = fit(Xtr, Te_tr, Xv, seed, args.epochs)
+        b = fit(align(Xtr, V, Vp_tr), Te_tr, align(Xv, V, Vp_v), seed, args.epochs)
+        vh_v = fit(Xtr, Vp_tr, Xv, seed, args.epochs)
+        vh_tr = fit(Xtr, Vp_tr, Xtr, seed, args.epochs)
+        c = fit(align(Xtr, V, vh_tr), Te_tr, align(Xv, V, vh_v), seed, args.epochs)
         vperr.append(float(np.median(np.abs(vh_v - Vp_v))))
 
         for tag, p in (("A  baseline (raw curve)", a),
