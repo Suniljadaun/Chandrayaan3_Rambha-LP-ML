@@ -2,7 +2,7 @@
 """
 Step 7 — Render every report figure from the saved tables/checkpoints.
 
-Outputs: outputs/figures/F1..F6 .png
+Outputs: outputs/figures/F1..F6 .png, Fig_yield_ab.png
 """
 import _bootstrap as B
 import json
@@ -40,6 +40,7 @@ def main():
         rec = json.load(f)
     figures.fig_recovery(rec["n_total_sweeps"], rec["n_classical_ok"],
                          rec["n_ml_recovered_from_failed"], cfg)
+    figures.fig_yield_ab(cdf, rec["n_classical_ok"], rec["n_ml_recovered_from_failed"], cfg)
 
     ml_df = pd.read_csv(out(cfg, "tables", "ml_predictions.csv"))
     figures.fig_density_trend(ml_df, cfg)

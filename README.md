@@ -4,7 +4,7 @@ Recovering electron density, electron temperature and plasma potential from the 
 instrument on the Chandrayaan-3 lunar lander — including the 44% of sweeps that classical
 curve-fitting cannot handle.
 
-**Sunil Jadaun** · M.Tech Independent Study, IIIT Hyderabad · Supervisor: Dr. Rama Chandra Pillutla
+**Sunil Kumar** · M.Tech Independent Study, IIIT Hyderabad · Supervisor: Dr. Rama Chandra Pillutla
 
 ---
 
@@ -44,8 +44,9 @@ It is validated three ways, none of which requires ground truth (there is none f
 - *Blind test.* The network never sees the date. Its recovered densities nonetheless reconstruct
   the mission-long trend, rising 246 → 493 cm⁻³ over eleven days (Spearman 0.78).
 
-**Against the published analysis** (Ambili et al. 2025, MNRAS 542, 2647): recovered values fall
-inside all three published ranges; for 2 September the pipeline returns 456 cm⁻³ against a
+**Against the published analysis** (Manju et al. 2025, MNRAS 542, 2647): median temperature and
+plasma potential, and daily median density from 27 August onwards, fall inside the published
+ranges (density on the first three days is lower); for 2 September the pipeline returns 456 cm⁻³ against a
 published 478, and a plasma potential of −3.9 V against −3.9 V.
 
 ## What is novel here

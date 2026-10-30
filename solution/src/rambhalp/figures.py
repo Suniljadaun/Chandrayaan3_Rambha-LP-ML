@@ -7,6 +7,7 @@ Figures produced:
   F3  training curves (total / supervised / physics loss)
   F4  synthetic hold-out: predicted vs true (Ne, Te)
   F5  recovery: recovered-sweep count and how it adds to the classical yield
+  Fig_yield_ab  F2 and F5 side by side with panel letters, as used in the report
   F6  blind test: per-day median recovered Ne across the mission, thin days marked
 
 All use matplotlib's Agg backend so they render headless (laptop, Kaggle, Colab).
@@ -22,6 +23,11 @@ import matplotlib.pyplot as plt
 from .config import out
 
 C_ORANGE, C_TEAL, C_PURPLE, C_GREY = "#c2410c", "#0f766e", "#6d28d9", "#7a8ca8"
+
+
+def _day_labels(dates) -> list[str]:
+    """YYYYMMDD -> '24 Aug', short enough to stay legible at report width."""
+    return [pd.to_datetime(str(d), format="%Y%m%d").strftime("%-d %b") for d in dates]
 
 
 def fig_example_sweep(sweeps, classical_rows, cfg):
@@ -45,18 +51,19 @@ def fig_example_sweep(sweeps, classical_rows, cfg):
 
 def fig_failure_map(classical_df: pd.DataFrame, cfg):
     """F2: per-day classical failure fraction."""
-    g = classical_df.groupby("date")["failed"].agg(["mean", "count"]).reset_index()
     fig, ax = plt.subplots(figsize=(8.2, 4.0))
+    _draw_failure_map(ax, classical_df)
+    fig.tight_layout(); _save(fig, cfg, "F2_failure_map.png")
+
+
+def _draw_failure_map(ax, classical_df: pd.DataFrame):
+    g = classical_df.groupby("date")["failed"].agg(["mean", "count"]).reset_index()
     xs = range(len(g))
     ax.bar(list(xs), g["mean"] * 100, color=C_ORANGE, alpha=0.85)
-    ax.set_ylabel("classical FAIL rate (%)")
-    ax.set_title(f"Where the classical method fails "
-                 f"(overall {classical_df['failed'].mean()*100:.0f}% of "
-                 f"{len(classical_df)} sweeps)")
+    ax.set_ylabel("Classical failure rate (%)")
     ax.set_xticks(list(xs))
-    ax.set_xticklabels(g["date"].astype(str), rotation=60, ha="right", fontsize=7)
+    ax.set_xticklabels(_day_labels(g["date"]), rotation=45, ha="right")
     ax.grid(alpha=0.25, axis="y")
-    fig.tight_layout(); _save(fig, cfg, "F2_failure_map.png")
 
 
 def fig_training_curves(history: dict, cfg):
@@ -73,38 +80,50 @@ def fig_training_curves(history: dict, cfg):
 
 
 def fig_synthetic_scatter(model, cfg):
-    """F4: predicted vs true on a synthetic hold-out (Ne, Te)."""
-    from . import synthetic
+    """F4: predicted vs true on the 4,000-sweep synthetic hold-out (Ne, Te)."""
     from .model import predict
-    X, Y, _ = synthetic.make_dataset(3000, cfg, seed=2024, regime="lunar")
+    held_out = np.load(cfg["paths"]["_outputs_abs"] / "cache" / "synth_val.npz")
+    X, Y = held_out["X"], held_out["Y"]
     pred = predict(model, X, cfg, mc_samples=1)
-    fig, ax = plt.subplots(1, 2, figsize=(10, 4.2))
+    fig, ax = plt.subplots(1, 2, figsize=(7.6, 3.4))
     ax[0].scatter(Y[:, 0], np.log10(pred["Ne_cc"]), s=4, alpha=0.25, color=C_TEAL)
     lim = [Y[:, 0].min(), Y[:, 0].max()]
     ax[0].plot(lim, lim, "k--", lw=1)
     ax[0].set_xlabel("true log₁₀ Ne"); ax[0].set_ylabel("pred log₁₀ Ne")
-    ax[0].set_title("Density"); ax[0].grid(alpha=0.25)
+    ax[0].grid(alpha=0.25)
     ax[1].scatter(Y[:, 1], pred["Te_eV"], s=4, alpha=0.25, color=C_ORANGE)
     lim = [Y[:, 1].min(), Y[:, 1].max()]
     ax[1].plot(lim, lim, "k--", lw=1)
     ax[1].set_xlabel("true Te (eV)"); ax[1].set_ylabel("pred Te (eV)")
-    ax[1].set_title("Temperature"); ax[1].grid(alpha=0.25)
-    fig.suptitle("Synthetic hold-out: network vs known truth", y=1.02)
+    ax[1].grid(alpha=0.25)
+    _panel_letters(ax)
     fig.tight_layout(); _save(fig, cfg, "F4_synthetic_scatter.png")
 
 
 def fig_recovery(n_total, n_classical_ok, n_recovered, cfg):
     """F5: yield bar — classical alone vs classical + ML-recovered."""
     fig, ax = plt.subplots(figsize=(5.6, 4.2))
-    ax.bar(["classical\nonly"], [n_classical_ok], color=C_GREY, label="classical")
-    ax.bar(["classical\n+ ML"], [n_classical_ok], color=C_GREY)
-    ax.bar(["classical\n+ ML"], [n_recovered], bottom=[n_classical_ok],
-           color=C_TEAL, label="ML-recovered")
-    ax.set_ylabel("usable sweeps")
-    ax.set_title(f"Recovered {n_recovered} of {n_total-n_classical_ok} failed sweeps\n"
-                 f"(total sweeps: {n_total})")
-    ax.legend(fontsize=8); ax.grid(alpha=0.25, axis="y")
+    _draw_recovery(ax, n_classical_ok, n_recovered)
     fig.tight_layout(); _save(fig, cfg, "F5_recovery.png")
+
+
+def _draw_recovery(ax, n_classical_ok, n_recovered):
+    ax.bar(["Classical\nonly"], [n_classical_ok], color=C_GREY, label="Classical")
+    ax.bar(["Classical\n+ network"], [n_classical_ok], color=C_GREY)
+    ax.bar(["Classical\n+ network"], [n_recovered], bottom=[n_classical_ok],
+           color=C_TEAL, label="Recovered by network")
+    ax.set_ylabel("Usable sweeps")
+    ax.set_ylim(0, (n_classical_ok + n_recovered) * 1.35)  # headroom so the legend clears the bars
+    ax.legend(loc="upper left"); ax.grid(alpha=0.25, axis="y")
+
+
+def fig_yield_ab(classical_df: pd.DataFrame, n_classical_ok, n_recovered, cfg):
+    """Report figure: (a) failure rate by day, (b) usable sweeps with and without the network."""
+    fig, ax = plt.subplots(1, 2, figsize=(7.6, 3.3), gridspec_kw=dict(width_ratios=[1.5, 1]))
+    _draw_failure_map(ax[0], classical_df)
+    _draw_recovery(ax[1], n_classical_ok, n_recovered)
+    _panel_letters(ax)
+    fig.tight_layout(); _save(fig, cfg, "Fig_yield_ab.png")
 
 
 def fig_density_trend(ml_df: pd.DataFrame, cfg):
@@ -137,7 +156,7 @@ def fig_density_trend(ml_df: pd.DataFrame, cfg):
 
     for x, (mval, cval) in enumerate(zip(g["median"], g["count"])):
         ax.annotate(f"n={cval}", (x, mval), textcoords="offset points", xytext=(0, 3),
-                    ha="center", fontsize=6.5, color=C_GREY)
+                    ha="center", fontsize=8, color="#3f4a5a")
 
     solid = g[~thin]
     rho = float("nan")
@@ -148,18 +167,21 @@ def fig_density_trend(ml_df: pd.DataFrame, cfg):
             rho = float(np.corrcoef(ra, rb)[0, 1])
 
     ax.set_ylabel("median recovered Ne (cm$^{-3}$)")
-    ax.set_title("Blind test — recovered density across the mission\n"
-                 f"model never told the date; Spearman(day, median Ne) = {rho:.2f} "
-                 f"over {len(solid)} well-sampled days")
+    ax.set_title(f"Spearman(day, median Ne) = {rho:.2f} over {len(solid)} well-sampled days")
     ax.set_xticks(list(xs))
-    ax.set_xticklabels(g["date"], rotation=60, ha="right", fontsize=7)
+    ax.set_xticklabels(_day_labels(g["date"]), rotation=45, ha="right")
     ax.legend(fontsize=8)
     ax.grid(alpha=0.25, axis="y")
     fig.tight_layout(); _save(fig, cfg, "F6_density_trend.png")
 
 
+def _panel_letters(axes):
+    for letter, ax in zip("abcdefgh", axes):
+        ax.set_title(f"({letter})", loc="left", fontweight="bold")
+
+
 def _save(fig, cfg, name):
     path = out(cfg, "figures", name)
-    fig.savefig(path, dpi=140, bbox_inches="tight")
+    fig.savefig(path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"[figures] wrote {path.name}")

@@ -45,3 +45,6 @@ archive/
 
 # Published papers used as references (not ours to redistribute)
 references/
+
+# built submission package
+submission/
