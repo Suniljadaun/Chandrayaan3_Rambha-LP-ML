@@ -39,9 +39,9 @@ def _params_from_output(out, cfg=None):
     # logNe far outside the label range and overflow to inf in float32, which then poisons
     # the loss to NaN for the rest of training with no way back. The clamp range is generous
     # (log10 Ne in [-2, 6] covers cm^-3 from 0.01 to 1e6, well beyond both the lunar synthetic
-    # range [50, 5000] and the MAVEN range up to 1e5) so it never binds during normal training
-    # -- it only stops a genuine blow-up. Same reasoning for Vp: real/synthetic Vp never
-    # exceeds +-6 V, so +-30 V is pure safety margin, not a physics constraint.
+    # range [2, 1000] and the MAVEN range up to 1e5) so it never binds during normal training
+    # -- it only stops a genuine blow-up. Same reasoning for Vp: synthetic Vp spans -12 to +6 V
+    # and real Vp stays inside the -12..+12 V sweep, so +-30 V is pure safety margin.
     logNe = torch.clamp(logNe, -2.0, 6.0)
     Vp = torch.clamp(Vp, -30.0, 30.0)
     Ne_cc = torch.pow(10.0, logNe)
@@ -78,7 +78,7 @@ def _params_from_output_two(out, cfg):
 
 def _target_scales(cfg, dev):
     """Per-target normalisation for the supervised loss: [log10(Ne), Te, Vp] have very
-    different natural spans (~2, ~2, ~12 respectively from config.yaml's synthetic ranges).
+    different natural spans (~2.7, ~2, ~18 respectively from config.yaml's synthetic ranges).
     A flat mean((pred-label)**2) across all three implicitly weights whichever target has the
     widest span (Vp) far more heavily than the others, starving Te/Ne of gradient signal even
     though the loss LOOKS like it treats all three equally. Dividing each channel's error by

@@ -99,8 +99,8 @@ def density_trend(ml_rows, cfg):
 
     WHY THIS REPLACED THE HOP TEST. The hop test asked whether recovered density on the
     terminator day (3 Sep 2023) exceeds the pre-hop day (2 Sep). It cannot be answered with
-    this archive: 2 Sep contributes ~1300 sweeps and 3 Sep only ~200, of which a fraction are
-    recovered. A physical prediction tested against a couple of dozen sweeps is not a test,
+    this archive: 2 Sep contributes 2,596 sweeps and 3 Sep only 408, of which 3 are
+    recovered. A physical prediction tested against a handful of sweeps is not a test,
     and the old implementation made it worse by taking the median over ALL rows including the
     ones the model itself flagged as not recovered.
 

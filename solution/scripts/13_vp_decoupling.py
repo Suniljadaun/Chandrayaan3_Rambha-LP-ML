@@ -5,8 +5,7 @@ Step 13 — Break the temperature / plasma-potential degeneracy.
 THE PROBLEM
 -----------
 Te is the weakest of the three recovered parameters: 0.078 eV on synthetic hold-out, which is
-~20% at the 0.4 eV this archive actually sits at, and 0.101 eV repeatability between the two
-halves of one commanded sweep.
+~20% at the 0.4 eV this archive actually sits at.
 
 Two diagnostics locate the cause.
 

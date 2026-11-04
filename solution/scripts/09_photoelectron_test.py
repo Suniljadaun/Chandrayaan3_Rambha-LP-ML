@@ -2,6 +2,10 @@
 """
 Step 9 — Is the second electron population real ambient plasma, or probe/lander photoelectrons?
 
+STATUS: superseded. This test assumed a second population exists. Scripts 11 and 12 later showed
+that the evidence for one was a stacking artefact, so the question below is moot. Kept as a
+record; see the supplementary material for what was withdrawn.
+
 WHY THIS MATTERS
 ----------------
 The recovered hot component sits at 1.2-1.9 eV. Dove et al. (2012) measure a laboratory

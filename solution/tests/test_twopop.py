@@ -46,7 +46,8 @@ def _sweep(pops, cfg, rng, noise_frac=NOISE_FRAC):
 
 
 def test_recovers_a_known_two_population_plasma():
-    """A cold majority plus a hot minority, at the proportions the archive suggests."""
+    """A cold majority plus a hot minority, at the proportions an earlier (since withdrawn)
+    decomposition of the archive suggested."""
     cfg = load_config()
     rng = np.random.default_rng(3)
     Nc, Tc, Nh, Th = 420.0, 0.25, 25.0, 1.40

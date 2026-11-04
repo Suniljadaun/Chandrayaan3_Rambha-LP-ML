@@ -3,8 +3,9 @@
 run_all.py — run the whole pipeline end-to-end (steps 1..7).
 
 Usage:
-  python scripts/run_all.py                 # full run incl. MAVEN transfer
-  python scripts/run_all.py --no-maven      # skip step 4 (lunar-only model)
+  python scripts/run_all.py --no-maven      # the run behind the reported results (lunar-only)
+  python scripts/run_all.py                 # also runs the MAVEN transfer, which made the
+                                            # model ~15x worse and was abandoned
   python scripts/run_all.py --quick         # tiny config for a smoke test
 
 Each step is a separate module run in-process; a failure stops the run with a clear message.

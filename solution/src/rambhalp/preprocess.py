@@ -115,7 +115,7 @@ def segment_file(sf: io_pds.SweepFile, cfg: dict, gain_table: pd.DataFrame | Non
         # ------------------------------------------------------------------------------
         # Each ops row is one TRIANGLE ramp: the commanded bias runs -12 -> +12 -> -12
         # within a single segment (verified: argmin(V) = 0, argmax(V) mid-segment, exactly
-        # one direction reversal, ~19,800 samples over 241 commanded levels). Because
+        # one direction reversal, about 16,500-19,800 samples over 241 commanded levels). Because
         # bin_sweep averages by voltage, the previous code merged the rising and falling
         # ramps into ONE curve per segment, which (a) throws away half the measurements and
         # (b) silently averages away any up/down hysteresis instead of letting you measure

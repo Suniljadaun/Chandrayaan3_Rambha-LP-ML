@@ -39,11 +39,11 @@ probe:
   #     alpha = 0.5 -> median R^2 0.992
   #     alpha = 1.0 -> median R^2 0.972   (the old hard-coded value)
   #     alpha = 0.0 -> median R^2 0.946
-  # 0.40, the fitted value, is used rather than the rounder 0.5: at 0.40 the classical fit
-  # reproduces ALL THREE published parameters for 2 Sep 2023 simultaneously (Ne 508 cm^-3
-  # against a published 409-680; Te 3535 K against 1800-3800 K; Vp -4.06 V against -3.9 V),
-  # and the recovered Ne is stable at 503-509 across every retardation window from 0.5 to
-  # 6 V. At 0.5 the density drops to ~330 cm^-3, below the published band.
+  # (The four R^2 values above were measured during development; no script for them was
+  # saved.) 0.40, the fitted value, is used rather than the rounder 0.5. With it, the classical
+  # fit on 2 Sep 2023 gives medians of Ne 464 cm^-3, Te 4,700 K and Vp -3.92 V over 1,789
+  # passing sweeps, against -3.9 V for that day in Manju et al. (2026) and 380-600 cm^-3 and
+  # 3,000-8,000 K in Manju et al. (2025).
   #
   # The exponent is NOT an instrumental artefact. The obvious candidate -- an I*R drop across
   # the probe resistor bending the saturation branch -- is ruled out by measurement: the
@@ -113,15 +113,20 @@ synthetic:
   # real sweeps fell inside the synthetic 5th-95th percentile band and the real median sat at
   # the synthetic 10th percentile -- i.e. nearly every real sweep was fainter than nearly
   # every training curve, which is why the network pinned Ne near 100 cm^-3 for all 14,931 of
-  # them regardless of input. With [2, 1000] (checked at sheath_exponent 0.5, before it was refined to 0.40) coverage is 100% and
-  # the real median sits at the synthetic 80th percentile. Consistent with the corrected
-  # classical fit, which gives a median Ne of ~300 cm^-3 on real sweeps, and with the
-  # 380-600 cm^-3 of MNRAS 542, 2647.
+  # them (each up/down pair was then one sweep) regardless of input. With [2, 1000] (checked
+  # at sheath_exponent 0.5, before it was refined to 0.40) coverage is 100% and the real median
+  # sits at the synthetic 80th percentile. Consistent with the classical fit, which gives a
+  # median Ne of 452 cm^-3 over its 16,596 passing sweeps, and with the 380-600 cm^-3 of
+  # Manju et al. (2025, MNRAS 542, 2647).
   te_eV: [0.05, 2.0]
-  # Unchanged: covers both the free fit (~0.14 eV) and MNRAS's 3000-8000 K (0.26-0.69 eV).
+  # Unchanged: covers the classical fit's 1st-99th percentile (0.24-1.56 eV, median 0.40) and
+  # the 3,000-8,000 K (0.26-0.69 eV) of Manju et al. (2025).
   vp_V: [-12.0, 6.0]
-  # Was [-6, 6]. The same fit puts Vp at a median of -5.5 V with p25 at -6.0, so roughly a
-  # quarter of real sweeps want a plasma potential below the old lower bound.
+  # Was [-6, 6]. An earlier version of the classical fit put Vp at a median of -5.5 V with
+  # p25 at -6.0, so the lower bound was widened to the edge of the sweep. The current fit gives
+  # median -3.6 V, p25 -4.7 V and p1 -11.6 V, so the tail below -6 V is still real. The upper
+  # bound leaves at least 6 V of saturation branch above the knee; 99% of classical Vp values
+  # are below +4.7 V.
   ion_current_frac: [0.002, 0.10]  # residual baseline tilt left after baseline subtraction,
     # as a fraction of curve span. NOTE the changed meaning: this is now a MAGNITUDE range,
     # sampled log-uniformly, with a random sign -- so it is still zero-mean, but it spans the
@@ -159,19 +164,15 @@ synthetic:
   # median of 0.0028 -- still 3x too noisy for the two quiet channels, which carry two thirds
   # of the archive.
   # --- second electron population -------------------------------------------------------
-  # The archive is not described by a single Maxwellian: the local temperature d(ln Ie)/dV
-  # varies five-fold across the retarding region, and resolving two populations moves the
-  # recovered temperature from 3903 K onto the published 2573 K (see twopop.py). With this
-  # true the synthetic set carries a cold majority plus a hot minority and the network
-  # predicts five parameters instead of three.
-  # Values from the archive decomposition: hot component at 1.2-1.9 eV carrying 4-6% of the
-  # density, consistent with lunar photoelectrons (~2 eV, Feuerbacher et al. 1972).
+  # WITHDRAWN. These settings belong to an experiment whose premise did not survive its control:
+  # the "five-fold" local-temperature variation came from averaging sweeps of different
+  # temperatures, it cannot be reproduced, and scripts/11_local_te_diagnostic.py shows the
+  # stacking artefact. The supplementary material lists what was withdrawn. With this true the
+  # synthetic set carries a cold majority plus a hot minority and the network predicts five
+  # parameters instead of three; the code is kept so the negative result can be reproduced.
   two_population: false          # false keeps the validated three-parameter pipeline
-  te_hot_eV: [0.8, 4.0]          # log-uniform. The decomposition gives 1.2-1.9 eV using the
-                                 # classical plasma potential and 1.6-1.9 eV using the
-                                 # network's; the local-temperature profile is still rising at
-                                 # the deepest measurable point, so the upper bound is headroom
-                                 # rather than a fitted value.
+  te_hot_eV: [0.8, 4.0]          # log-uniform. Chosen around the 1.2-1.9 eV of the withdrawn
+                                 # decomposition, with headroom above it.
   hot_fraction: [0.0, 0.15]      # share of total density, for sweeps that HAVE a hot component
   hot_absent_frac: 0.35          # share of sweeps with NO hot component at all (exactly zero).
                                  # An explicit atom at zero, not the tail of a uniform. Without
@@ -185,7 +186,7 @@ synthetic:
     - [0.0015, 0.0055]     # 49.9 kohm
     - [0.0015, 0.0045]     # 1 Mohm
     - [0.0080, 0.0450]     # 20 Mohm
-  noise_frac: [0.0015, 0.05]     # fallback if noise_frac_by_channel is absent; also the
+  noise_frac: [0.0015, 0.05]     # fallback if noise_frac_by_channel is absent, drawn
     # LOG-uniformly (the range spans a factor of 33). Was [0.01, 0.08], which was 3x to 24x
     # noisier than the real data and was doing real damage. Measured on the binned archive as
     # the residual about a 9-point smooth, divided by curve span:
@@ -196,8 +197,8 @@ synthetic:
     # noise, so the window that works on real sweeps failed every synthetic round-trip -- which
     # looked like a sim-to-real gap and was really just the wrong noise. And the earlier
     # conclusion that electron temperature is "information-limited to +-0.35 eV" was derived at
-    # the old noise level. At the measured level Te is resolvable to +-0.035 eV on the 49.9 kohm
-    # and 1 Mohm channels -- two thirds of the archive -- and +-0.29 eV at 20 Mohm.
+    # the old noise level. At the measured quiet-channel level (0.24% of span) the Cramer-Rao
+    # bound on Te for a 0.4 eV sweep is about 0.006 eV, or 1.5% (scripts/16_fisher_bound.py).
 
 model:
   hidden: [256, 256, 128]
@@ -236,6 +237,9 @@ train:
   seed: 1337
 
 maven:
+  # Mars pre-training made the model about 15x worse and was abandoned. The reported results
+  # come from `run_all.py --no-maven` (checkpoint pinn.pt); with enabled: true, step 5 would
+  # use the transfer checkpoint instead.
   enabled: true
   # If the online download fails or is disabled, the code falls back to a
   # MAVEN-like synthetic distribution so the transfer stage still runs.
@@ -250,17 +254,16 @@ maven:
 validate:
   # Pre-hop (baseline) and terminator dates for the blind physics test. NOTE: this was
   # previously a single hop_date="20230826" -- but 20230826 is an early demo-session date,
-  # not the actual lander-hop event. The established target from this project's own earlier
-  # research is the hop around 2 Sep 2023: pre-hop density ~478/cc, terminator (3 Sep)
-  # ~1100/cc, with the crash epoch itself acquired in zero-potential mode (no sweeps exist for
-  # it, so it cannot be tested via sweep-reading -- only the pre-hop/terminator CONTEXT is
-  # testable). If this pins the wrong dates for your archive, they're one edit here.
+  # not the actual lander-hop event. The hop was on 2 Sep 2023 (Manju et al. 2026): density
+  # ~478 cm^-3 before it, ~26 after, ~1,100 at the 3 Sep terminator. The hop itself was
+  # recorded in a fixed-voltage mode, so no sweeps exist for it; only the pre-hop and
+  # terminator CONTEXT can be described.
   pre_hop_date: "20230902"
   terminator_date: "20230903"
   mc_samples: 50                  # MC-dropout forward passes for uncertainty
   min_sweeps_per_day: 100         # a day with fewer recovered sweeps than this is reported
-    # but excluded from the density-trend statistic. 3 Sep 2023 has ~200 sweeps in total and
-    # only a handful recovered, which is why the old single-day hop test was not testable.
+    # but excluded from the density-trend statistic. 3 Sep 2023 has 408 sweeps in total and
+    # only 3 recovered, which is why the old single-day hop test was not testable.
 
 paths:
   outputs: "outputs"

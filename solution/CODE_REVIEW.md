@@ -2961,6 +2961,13 @@ baseline Te spans p10 = 0.120 to p90 = 0.580 eV across the archive with a ramp s
 repeatable than the classical fit's 0.101 eV. The test is fair and the refinement genuinely
 fails it.
 
+> **Correction (4 Nov 2026).** The "13x" compared two different statistics: the network's
+> 0.0076 eV is a median |up − down|, while the classical 0.101 eV is rms/√2, which the
+> classical fit's outliers inflate. Like for like, on the 6,764 pairs where both halves pass the
+> classical fit, the median |up − down| is 0.025 eV for the classical fit and 0.006 eV for the
+> network (single deterministic pass), about 4x. The conclusion that the test is fair is
+> unchanged. The report now states the 4x figure.
+
 ### Leading hypothesis, with its own supporting evidence
 
 The alignment window is `u in [-2.0, +0.6] V`. That is centred on precisely the bias region where

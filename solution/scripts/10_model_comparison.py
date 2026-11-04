@@ -2,6 +2,10 @@
 """
 Step 10 — Is the second electron population real, or a baseline artefact?
 
+STATUS: superseded. The five-fold profile quoted below came from an unsaved script, and
+scripts/11_local_te_diagnostic.py shows that stacking sweeps of different temperatures produces
+it with no second population at all. Kept as a record.
+
 THE QUESTION
 ------------
 The evidence that this archive is not a single Maxwellian is the local temperature

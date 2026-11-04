@@ -11,8 +11,12 @@ Two modes, chosen automatically:
   * REAL download: fetch a MAVEN LPW L2 Langmuir-sweep file from NASA/LASP if reachable,
     parse (V, I) sweeps, and pretrain on those.
   * FALLBACK: if the download is disabled or unreachable, generate a MAVEN-LIKE synthetic set
-    using the denser Mars parameter ranges in config.yaml. The pretraining stage still runs and
-    the transfer benefit is still demonstrable; the report simply notes which mode was used.
+    using the denser Mars parameter ranges in config.yaml, so the pretraining stage still runs.
+
+RESULT: in this project the pretraining made the model about 15x worse, so it was abandoned and
+the reported results use the lunar-only model (run_all.py --no-maven). The likely reason is that
+both datasets come from the same forward model, so pretraining adds no new physics, only a
+density prior two to three orders of magnitude away.
 
 Per the Day-32 gate: if MAVEN 'fights you', freezing it as future work is a legitimate,
 pre-planned outcome — this module makes that a config flag, not a crisis.

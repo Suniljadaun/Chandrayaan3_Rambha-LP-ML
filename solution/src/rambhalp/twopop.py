@@ -1,7 +1,13 @@
 """
 twopop.py — resolve the electron population into two Maxwellians instead of one.
 
-WHY THIS EXISTS
+STATUS: WITHDRAWN. The evidence described below did not survive its control. The five-fold
+local-temperature variation came from averaging sweeps with different temperatures (see
+scripts/11_local_te_diagnostic.py and scripts/12_slope_curvature.py); the per-sweep test finds
+one temperature. The text below is kept as the record of the original reasoning, and the code is
+kept so the negative result can be reproduced. Do not quote its numbers as findings.
+
+WHY THIS EXISTED
 ---------------
 Two independent estimates of electron temperature from the same RAMBHA-LP curves disagree by
 about 44%: the log-linear slope of the retarding region gives ~3950 K, while the offset between

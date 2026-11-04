@@ -37,8 +37,9 @@ def sample_params(n: int, cfg: dict, rng: np.random.Generator, regime: str = "lu
 def sample_hot(n: int, Ne_cold, cfg: dict, rng: np.random.Generator):
     """Draw the hot minority population: its temperature, and its share of the total density.
 
-    Parameterised by FRACTION rather than absolute density, because that is what the data
-    constrains — the archive gives a hot component at 4-6% of the total. The range includes
+    Parameterised by FRACTION rather than absolute density. The 0-15% range was chosen around
+    the 4-6% of a two-population decomposition that was later withdrawn (see config.yaml,
+    two_population). The range includes
     zero so the network also sees genuinely single-population curves and can learn to report
     no hot component when there is none; a model that always splits the plasma in two would be
     useless as evidence that two populations exist.
@@ -114,10 +115,10 @@ def make_dataset(n: int, cfg: dict, seed: int, regime: str = "lunar"):
         # so a single uniform scale misrepresents it badly at both ends.
         mag = 10 ** rng.uniform(np.log10(ion_lo), np.log10(ion_hi))
         tilt = rng.choice([-1.0, 1.0]) * mag * span * (grid - grid.min()) / np.ptp(grid)
-        # Log-uniform, not uniform: the measured noise spans a factor of ~33 across the three
-        # probe-resistance settings (0.002 at 49.9 kohm and 1 Mohm, 0.018 at 20 Mohm), so a
-        # uniform draw would put almost all training curves in the noisy regime that only a
-        # third of the archive actually occupies.
+        # Log-uniform, not uniform: the measured noise differs about 9x between the three
+        # probe-resistance settings (medians 0.0021 at 49.9 kohm, 0.0024 at 1 Mohm, 0.018 at
+        # 20 Mohm), so a uniform draw would put almost all training curves in the noisy regime
+        # that only a third of the archive actually occupies.
         if chans:
             lo, hi = chans[rng.integers(len(chans))]
         else:

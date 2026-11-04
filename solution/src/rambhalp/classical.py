@@ -99,9 +99,9 @@ def _te_from_vfloat(V_float: float, Vp: float, cfg: dict) -> float:
 
     Having both is the point. If the electrons really are a single Maxwellian the two
     estimates must agree; if they disagree systematically, they do not. On the RAMBHA-LP
-    archive they disagree by a median factor of 1.4, identically at two different probe
-    resistance settings, which is why this is computed and reported for every sweep rather
-    than being used to replace the slope fit.
+    archive the slope estimate is a median 1.44 times the floating-potential one (8,881
+    passing sweeps; 1.60 on ADC channel 1, 1.20 on channel 2), which is why this is computed
+    and reported for every sweep rather than being used to replace the slope fit.
 
     Returns NaN unless both potentials are finite and ordered Vp > V_float.
     """

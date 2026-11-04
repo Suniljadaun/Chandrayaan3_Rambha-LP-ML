@@ -62,8 +62,9 @@ def electron_sat_current(Ne_m3, Te_eV, cfg) -> float:
 #  saturation + electronics offset) that varies by gain channel. We subtract that baseline
 #  from every real sweep (infer.prepare_input) so the curve runs from ~0 (deep retardation)
 #  up to the electron branch. The synthetic generator produces the SAME zero-baselined
-#  electron curve, so training and real data live in one representation. Verified on real
-#  RAMBHA sweeps: the OML electron model reconstructs them with median R^2 ~0.82.
+#  electron curve, so training and real data live in one representation. On real RAMBHA
+#  sweeps the network's parameters, pushed back through this model, reconstruct the curve with
+#  median R^2 0.993 (outputs/tables/ml_predictions.csv, all 29,862 sweeps).
 # --------------------------------------------------------------------------------------
 def forward_iv_np(V, Ne_cc, Te_eV, Vp_V, cfg):
     """Electron current I_e(V) in AMPS (ion baseline = 0).
@@ -104,10 +105,9 @@ def forward_iv_np(V, Ne_cc, Te_eV, Vp_V, cfg):
 def forward_iv_two_np(V, Ne_c, Te_c, Ne_h, Te_h, Vp_V, cfg):
     """Electron current in AMPS from TWO Maxwellian populations sharing one plasma potential.
 
-    The RAMBHA-LP sweeps are not described by a single Maxwellian: the local temperature
-    d(ln Ie)/dV varies by a factor of five across the retarding region (measured over 1,403
-    sweeps), which is the signature of a cold majority plus a hot minority. Resolving the two
-    moves the recovered temperature from 3903 K onto the published 2573 K. See twopop.py.
+    Used only by the withdrawn two-population experiment (config.yaml, two_population). Its
+    premise, a five-fold variation in local temperature, turned out to come from averaging
+    sweeps of different temperatures; see twopop.py and scripts/11_local_te_diagnostic.py.
 
     Both populations are collected by the same probe through the same sheath, so each uses the
     same forward model and the same sheath exponent; the currents simply add.
@@ -128,9 +128,10 @@ def forward_iv_two_np(V, Ne_c, Te_c, Ne_h, Te_h, Vp_V, cfg):
 # That kink is not cosmetic. The matched-control diagnostic (scripts/11_local_te_diagnostic.py)
 # found the real stacked curves flatter than a stack of single Maxwellians in the 0.6 V below Vp,
 # reproducibly on NINE of nine observation days (sign test p = 0.002). Blending the two branches
-# over a width of ~1.3*Te removes that excess entirely: +0.18 and +0.24 eV at u = -0.6 and -0.3
-# become +0.00 and -0.02. Varying the sheath exponent over 0.40 / 0.70 / 1.00 changes it by
-# nothing at all, because alpha acts only above Vp.
+# in log space over ~1.3*Te reduces that excess at u = -0.3 from +0.24 to +0.13 eV; it does not
+# remove it. (An earlier linear blend appeared to remove it completely, but that was an artefact
+# of the blend itself; see config.yaml, transition_width_te.) Varying the sheath exponent over
+# 0.40 / 0.70 / 1.00 changes it by nothing at all, because alpha acts only above Vp.
 #
 # Width 0 reproduces the sharp model exactly, so this is off unless probe.transition_width_te
 # is set.

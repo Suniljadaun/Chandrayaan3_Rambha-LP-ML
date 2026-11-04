@@ -17,7 +17,7 @@ from rambhalp import physics, classical
 from rambhalp.preprocess import Sweep, common_grid
 
 # (Ne cm^-3, Te eV, Vp V). Chosen to sit where the real archive sits -- the corrected
-# classical fit gives Te around 0.3 eV and Vp around -4 V -- rather than spread over the
+# classical fit gives Te around 0.4 eV and Vp around -3.6 V -- rather than spread over the
 # full sampled synthetic range. Test cases far from the data's own regime were previously
 # reporting a failure of the fit when what they really showed was that the cases were
 # unrepresentative.
