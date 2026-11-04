@@ -83,13 +83,13 @@ preprocess:
 
 classical:
   # Windows for the classical OML fit (all in volts, relative to V_float).
-  retardation_span: 1.0    # electron-retardation fit window above V_float (an upper bound;
-    # the fit trims it at Vp once Vp is known). Briefly set to 1.5 during the 2026-09-03
-    # rewrite on the basis of a fitted Te of ~0.14 eV -- but that Te was itself an artefact of
-    # forcing probe.sheath_exponent = 1.0. With the measured exponent of 0.5 the fitted Te is
-    # ~0.5 eV and 6.0 is the better value: it recovers 8/8 synthetic round-trip cases (1.5
-    # recovers only 4/8, because a 1.5 V window is too short a lever arm at Te >= 0.8 eV) and
-    # succeeds on 28% of real sweeps against 23% at 4.0 and 46% at 1.5 with wrong parameters.
+  retardation_span: 1.0    # electron-retardation fit window [V_float, V_float + 1.0 V], an
+    # upper bound that the fit trims at Vp once Vp is known. The saturation branch is fitted
+    # above the same point. 1.0 V is 10 samples at the 0.1 V commanded step, matching the
+    # 8-10 point window of Manju et al. This is the value behind every reported classical
+    # result: outputs/tables/classical_baseline.csv (16,596 of 29,862 sweeps pass, median
+    # Te 0.40 eV) is reproduced exactly at 1.0 and not at other values. Earlier drafts tried
+    # 1.5 and 6.0 under an older sheath exponent; neither is used.
   ion_floor_offset: 2.0    # sample ion current this far below V_float
   min_fit_points: 4        # minimum points to attempt the exponential fit. Manju et al. use
     # 8-10 points, which at the 0.1 V commanded step is a window of 0.8-1.0 V; that is
@@ -113,7 +113,7 @@ synthetic:
   # real sweeps fell inside the synthetic 5th-95th percentile band and the real median sat at
   # the synthetic 10th percentile -- i.e. nearly every real sweep was fainter than nearly
   # every training curve, which is why the network pinned Ne near 100 cm^-3 for all 14,931 of
-  # them regardless of input. With [2, 1000] (and sheath_exponent 0.5) coverage is 100% and
+  # them regardless of input. With [2, 1000] (checked at sheath_exponent 0.5, before it was refined to 0.40) coverage is 100% and
   # the real median sits at the synthetic 80th percentile. Consistent with the corrected
   # classical fit, which gives a median Ne of ~300 cm^-3 on real sweeps, and with the
   # 380-600 cm^-3 of MNRAS 542, 2647.

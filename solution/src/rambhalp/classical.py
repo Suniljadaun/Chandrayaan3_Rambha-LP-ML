@@ -39,10 +39,10 @@ numbers, and both are fixed here.
    potential, in baseline and noise, nowhere near the electron-retardation region.  A
    log-linear fit there has poor R^2 essentially always, which is why 10,849 of 12,588
    "classical failures" were nothing but `R2 < 0.90`: an artifact, not physics.
-   FIX: the window is now defined relative to the plasma potential —
-   [Vp - retardation_span, Vp] — which is what `classical.retardation_span` in config.yaml
-   was always meant for.  That key, and `classical.ion_floor_offset`, were previously read
-   by no code at all; both are now used.
+   FIX: the window now starts at the floating potential and runs up to the plasma
+   potential, [V_float, min(V_float + retardation_span, Vp)], which is what
+   `classical.retardation_span` in config.yaml was always meant for.  That key, and
+   `classical.ion_floor_offset`, were previously read by no code at all; both are now used.
 """
 from __future__ import annotations
 from dataclasses import dataclass, asdict, field
@@ -182,8 +182,9 @@ def fit_sweep(sw: Sweep, cfg: dict) -> ClassicalResult:
       * subtract the ion-saturation floor, sampled below V_float (or at the most negative
         bias if the curve never crosses zero)
       * locate Vp from the knee of the curve
-      * fit ln(I_e) vs V over [Vp - retardation_span, Vp]  ->  Te = 1/slope
-      * fit I_e vs V over [Vp, top of sweep] and extrapolate to Vp  ->  I_e0
+      * fit ln(I_e) vs V over [V_float, min(V_float + retardation_span, Vp)]  ->  Te = 1/slope
+      * fit I_e**(1/alpha) vs V above V_float + retardation_span and extrapolate to Vp
+        ->  Vp and I_e0
       * Ne from I_e0 via the electron thermal flux relation
     A true zero crossing is NOT required — many calibrated sweeps sit on a positive offset;
     requiring a sign change would flag a convention, not a physics failure. V_float is still
@@ -253,8 +254,8 @@ def fit_sweep(sw: Sweep, cfg: dict) -> ClassicalResult:
     #          Vp   = V0 + Te
     #          I_e0 = (m * Te) ** alpha
     #      For alpha = 1 (the old hard-coded OML sphere) this is exactly a line fit to I; for
-    #      alpha = 0.5, which is what the real sweeps actually show, it is the familiar
-    #      "I^2 versus V" extrapolation. alpha is measured, not assumed -- see config.yaml.
+    #      alpha = 0.5 it is the familiar "I^2 versus V" extrapolation. The real sweeps give
+    #      alpha = 0.40, which is measured, not assumed -- see config.yaml.
     # I_e0 is the electron current AT the plasma potential -- the quantity the thermal-flux
     # relation below assumes, and the same one physics.electron_sat_current() returns. The
     # old code used the current at the TOP of the sweep instead, ~(1 + (12-Vp)/Te) ~ 12x
@@ -301,7 +302,7 @@ def fit_sweep(sw: Sweep, cfg: dict) -> ClassicalResult:
     # discards half of an already short retardation branch. At Te = 0.2 eV that branch spans
     # only about 0.75 V, i.e. 8 samples at the 0.1 V commanded step.
     floor = 1.5 * noise
-    # Upper edge of the retardation window. `retardation_span` (6 V) is a generous outer
+    # Upper edge of the retardation window. `retardation_span` (1.0 V) is the outer
     # bound; the real limit is the plasma potential, because past Vp the curve is linear and
     # a log-linear fit through it drags the slope down and inflates Te. We do not know Vp
     # yet, so the first pass is capped by the knee estimate and later passes by V0 + Te.
