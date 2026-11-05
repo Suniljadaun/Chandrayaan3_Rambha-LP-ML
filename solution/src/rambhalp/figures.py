@@ -40,11 +40,11 @@ def fig_example_sweep(sweeps, classical_rows, cfg):
     if np.isfinite(r.V_float):
         ax.axvline(r.V_float, color=C_TEAL, ls="--", lw=1,
                    label=f"V_float = {r.V_float:.2f} V")
-    txt = f"Te = {r.Te_eV:.2f} eV\nNe = {r.Ne_cc:.0f} cm⁻³\nR² = {r.r2:.2f}"
+    txt = f"Classical fit\nTe = {r.Te_eV:.2f} eV\nNe = {r.Ne_cc:.0f} cm⁻³\nR² = {r.r2:.2f}"
     ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", fontsize=9,
             bbox=dict(boxstyle="round", fc="white", ec=C_GREY, alpha=0.9))
     ax.set_xlabel("Bias voltage V (V)"); ax.set_ylabel("Probe current I (nA)")
-    ax.set_title(f"RAMBHA-LP sweep — {sw.date}, classical fit")
+    ax.set_title(f"RAMBHA-LP sweep, {pd.to_datetime(str(sw.date), format='%Y%m%d').strftime('%-d %B %Y')}")
     ax.legend(fontsize=8); ax.grid(alpha=0.25)
     fig.tight_layout(); _save(fig, cfg, "F1_example_sweep.png")
 
