@@ -3111,3 +3111,30 @@ seed sd 40-120 sweeps). The ten-point recovery gain reported in Phase 12 came fr
 and is withdrawn. The term still earns its keep on real data: without it the up/down density
 disagreement is 41% larger (0.0144 vs 0.0102 dex, seed sd <= 0.0009) and a +0.024 dex (6%) offset
 against the classical fit appears (+0.001 dex with it). Synthetic Te: 0.075 vs 0.056 eV.
+
+# Phase 19 — Second review: clipping detection corrected, clipped sweeps excluded from both methods (6 Nov 2026)
+
+A second referee-style review found three analyses that predated the clipping finding:
+
+- **The twin-half evidence for excluding clipped sweeps was invalid.** "68% high in density,
+  0.43 eV low in Te against the classical twin" compared the network on a clipped sweep with the
+  classical fit on a twin that was itself clipped. With the twin required to be unclipped only a
+  handful of pairs remain. Replaced by a **clip-injection test** (script 18, section e): 3,000
+  unclipped real sweeps cut flat at 90/70/50% of peak. At 70% (plateau from +2.9 V, close to the
+  real median of +1.6 V) the network's Te falls to 0.37 of its unclipped value and density rises
+  10%; at 90% (plateau above +9 V) Te falls 20% and density is unchanged.
+- **The detector missed mild clipping and worked on the wrong curve.** It tested the 240-point grid,
+  where resampling pads a sweep that stops short of +12 V with its last value. `infer.clipped_sweeps`
+  now tests the binned sweep: clipped if the last 5 bins lie within 0.1% of the current range below
+  the maximum. 9,074 sweeps (30.4%): 73% of channel 2 at 1 Mohm, 100% of channel 2 at 20 Mohm, 9% of
+  channel 1 at 20 Mohm. Clipping is a channel-2 front-end effect, not a resistor effect alone.
+- **Clipped classical passes are artefacts too.** On 78% of the 1,449 clipped classical passes at
+  least half of the fitted saturation branch is plateau. They are no longer counted as usable, and
+  the classical comparison (Table 5) uses the 15,147 unclipped passes.
+- **Table 11 included clipped pairs**, on which the network returns the same wrong Te for both
+  halves. Re-run without them: baseline 0.0097 eV, refined 0.0164 eV (69% worse, was 32%); offset
+  +0.009 -> -0.040 eV. The rejection stands and is stronger.
+
+Headline: 5,115 recovered (38.6% of failures; 91% of the 5,641 unclipped failures), 20,262 usable
+(67.9%), up from 15,147 (50.7%) unclipped classical passes. The ADC-channel effect near Vp is
+unchanged with clipped sweeps removed (39.7% vs 28.8% positive), so it is not clipping itself.

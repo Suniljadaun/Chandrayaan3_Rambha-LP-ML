@@ -11,7 +11,7 @@ nearly halves the temperature error: 22.3% +- 1.3% -> 12.2% +- 0.2%, about 13 si
 That is a synthetic result, and this project has already been burned by exactly that distinction.
 The physics-loss ablation (scripts/08) found a term that looks actively harmful on synthetic
 hold-out — removing it improved synthetic Te from 0.075 to 0.056 eV — while it makes real densities
-29% more repeatable between sweep halves and removes a 6% offset against the classical fit. (An
+30% more repeatable between sweep halves and removes a 5% offset against the classical fit. (An
 earlier run credited it with ten points of recovery; that came from clipped sweeps.) Judged on synthetic
 accuracy alone, the correct decision reversed.
 
@@ -115,9 +115,15 @@ def main():
     pr = predict(model, Xr, cfg, mc_samples=1)
     te_ref_r, _ = te_refine.predict_te(head, Xr, V, pr["Vp_V"])
 
+    # Clipped sweeps are excluded (config.yaml, recovery): on them the network returns the same
+    # wrong, very low Te for both halves, which looks artificially repeatable.
+    clipped = infer.clipped_sweeps(sweeps, cfg)
+    report["n_clipped_excluded"] = int(clipped.sum())
     rows = [{"timestamp": sw.timestamp, "idx": sw.idx, "segment": int(sw.segment),
              "direction": sw.direction, "Te_base": float(pr["Te_eV"][i]),
-             "Te_ref": float(te_ref_r[i])} for i, sw in enumerate(sweeps)]
+             "Te_ref": float(te_ref_r[i])} for i, sw in enumerate(sweeps) if not clipped[i]]
+    report["baseline_Te_p10_p90_eV"] = [float(x) for x in
+                                        np.percentile(pr["Te_eV"][~clipped], [10, 90])]
 
     rb, rr = ramp_scatter(rows, "Te_base"), ramp_scatter(rows, "Te_ref")
     report["ramp_consistency"] = {"baseline": rb, "refined": rr}
@@ -140,7 +146,7 @@ def main():
     db, dr = [], []
     for i, sw in enumerate(sweeps):
         t = cmap.get((sw.timestamp, sw.idx))
-        if t is None:
+        if t is None or clipped[i]:
             continue
         db.append(pr["Te_eV"][i] - t); dr.append(te_ref_r[i] - t)
     if len(db) > 100:

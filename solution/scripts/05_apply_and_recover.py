@@ -54,15 +54,25 @@ def main():
                  if (r["timestamp"], r["idx"]) in fail_keys and r["recovered"]]
     n_recovered = len(recovered)
 
+    # Clipped sweeps are unusable for BOTH methods: the classical fit's saturation branch on them
+    # is almost entirely the clipped plateau, just as the network's input is. So a classical
+    # pass on a clipped sweep is not counted as usable either.
+    ok_keys = set(zip(classical_df.loc[~classical_df["failed"], "timestamp"],
+                      classical_df.loc[~classical_df["failed"], "idx"]))
+    n_classical_ok_unclipped = sum(1 for r in ml_rows
+                                   if (r["timestamp"], r["idx"]) in ok_keys and not r["clipped"])
+    n_usable = n_classical_ok_unclipped + n_recovered
     summary = {
         "n_total_sweeps": n_total,
         "n_classical_ok": n_classical_ok,
+        "n_classical_ok_unclipped": n_classical_ok_unclipped,
+        "n_unclipped_total": int((~ml_df["clipped"]).sum()),
         "n_classical_failed": n_total - n_classical_ok,
         "n_ml_recovered_from_failed": n_recovered,
         "recovery_fraction_of_failed":
             n_recovered / max(1, n_total - n_classical_ok),
-        "combined_yield": n_classical_ok + n_recovered,
-        "combined_yield_fraction": (n_classical_ok + n_recovered) / max(1, n_total),
+        "combined_yield": n_usable,
+        "combined_yield_fraction": n_usable / max(1, n_total),
         # Clipped sweeps (config.yaml, recovery) are never counted as recovered.
         "n_clipped_total": int(ml_df["clipped"].sum()),
         "n_classical_failed_clipped": int(sum(1 for r in ml_rows

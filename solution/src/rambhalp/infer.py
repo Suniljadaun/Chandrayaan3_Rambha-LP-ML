@@ -49,22 +49,30 @@ def prepare_input(sweeps, cfg):
     return X, elec
 
 
-def clipped_mask(electron_curves, cfg):
-    """True for curves the instrument clipped: a flat top reached well below the end of the sweep.
+def clipped_sweeps(sweeps, cfg):
+    """True for sweeps the instrument clipped: the top of the curve is a flat plateau.
 
-    See config.yaml, recovery. The network cannot read a clipped curve correctly (it imitates the
-    flat top with a very low Te), so a clipped sweep is never counted as recovered.
+    Tested on the binned sweep itself, not on the 240-point grid: resampling pads a sweep that
+    stops short of +12 V with copies of its last value, which would look like a plateau. A sweep
+    counts as clipped when its last clip_flat_points bins (highest bias) all lie within
+    clip_flat_tolerance of the sweep's current range below its maximum. Noise makes such a run
+    essentially impossible on an unsaturated curve. See config.yaml, recovery.
     """
     rcfg = cfg.get("recovery", {})
-    k = int(rcfg.get("clip_top_points", 40))
-    tol = float(rcfg.get("clip_flat_tolerance", 0.002))
-    reach = float(rcfg.get("clip_reach_V", 8.0))
-    grid = common_grid(cfg)
-    E = np.asarray(electron_curves, dtype=float)
-    peak = np.maximum(E.max(axis=1), 1e-30)
-    flat = np.ptp(E[:, -k:], axis=1) < tol * peak
-    first_at_peak = grid[np.argmax(E >= 0.998 * peak[:, None], axis=1)]
-    return flat & (first_at_peak < reach)
+    k = int(rcfg.get("clip_flat_points", 5))
+    tol = float(rcfg.get("clip_flat_tolerance", 0.001))
+    out = np.zeros(len(sweeps), dtype=bool)
+    for n, sw in enumerate(sweeps):
+        V, I = np.asarray(sw.V, float), np.asarray(sw.I, float)
+        if V.size < k:
+            continue
+        o = np.argsort(V)
+        I = I[o]
+        if np.corrcoef(V[o], I)[0, 1] < 0:
+            I = -I
+        top = I[-k:]
+        out[n] = bool(np.all(I.max() - top <= tol * (np.ptp(I) + 1e-30)))
+    return out
 
 
 def _recon_r2(curve_amps, Ne, Te, Vp, cfg, Nh=None, Th=None):
@@ -99,7 +107,7 @@ def apply(model, sweeps, cfg, mc_samples=None):
     lo_ne, hi_ne = ccfg["ne_plausible_cc"]
 
     two_pop = "Nh_cc" in pred
-    clipped = clipped_mask(elec, cfg)
+    clipped = clipped_sweeps(sweeps, cfg)
     exclude_clipped = bool(cfg.get("recovery", {}).get("exclude_clipped", True))
     rows = []
     for i, sw in enumerate(sweeps):

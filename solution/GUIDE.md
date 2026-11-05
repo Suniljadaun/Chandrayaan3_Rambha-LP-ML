@@ -46,8 +46,8 @@ The classical way to get them (fit a straight line to ln(I) below the plasma pot
 the saturation branch) works on clean sweeps and **fails** on noisy, faint or oddly shaped ones. On
 this archive it fails on 13,266 of 29,862 sweeps (44%). This project trains a neural network on
 simulated sweeps, with a loss that also checks the physics, to read the *whole* curve into
-(Ne, Te, Vp). It recovers 5,410 of those failures (41%; 91% of the ones the instrument did not
-clip), raising the usable part of the archive from 56% to 74%, with error bars, because there is no
+(Ne, Te, Vp). It recovers 5,115 of those failures (39%; 91% of the ones the instrument did not
+clip), raising the usable part of the archive from 51% to 68%, with error bars, because there is no
 ground truth for lunar plasma.
 
 The thesis in one line: **the classical fit discards many sweeps; a physics-informed network
@@ -174,20 +174,20 @@ Applies `pinn.pt` to every real sweep with 50 Monte-Carlo dropout passes (mean =
 error bar), rebuilds each sweep through the OML model, and marks a sweep **recovered** if Ne is
 1 to 100,000 cm^-3, Te is 0.03 to 5 eV, the rebuilt curve has R^2 of at least 0.90, and the density
 error bar is below 0.5 dex. Writes `outputs/tables/ml_predictions.csv` and `recovery_summary.json`.
-*Check:* `recovery_summary.json` holds the headline: **5,410 of 13,266 failures recovered
-(40.8%); combined usable sweeps 22,006 (73.7%)**. A sweep the instrument clipped (8,449 of them,
-28%) is never counted as recovered; see `config.yaml`, `recovery`.
+*Check:* `recovery_summary.json` holds the headline: **5,115 of 13,266 failures recovered
+(38.6%); combined usable sweeps 20,262 (67.9%)**. A sweep the instrument clipped (9,074 of them,
+30%) is unusable for both methods; see `config.yaml`, `recovery`.
 
 **Step 6: `06_validate_hop.py` (validate).**
 Four checks, since there is no ground truth:
 (a) error on the 4,000 simulated test sweeps, where the truth is known;
 (b) agreement with the classical fit on the 16,596 sweeps it handles (no systematic density
-offset; individual sweeps differ by 4.7% in density and 27% in temperature);
+offset; individual sweeps differ by 4.4% in density and 25% in temperature; clipped sweeps left out);
 (c) the **density trend** across the mission: the network is never told the date, yet its daily
 medians rise smoothly (Spearman 0.78, p = 0.008, over 10 well-sampled days). The classical fit
 shows the same rise, so this is a consistency check, not proof against an instrumental effect;
 (d) **ramp consistency**: the up and down halves of each sweep measure the same plasma seconds
-apart, so their disagreement (2.4% in density over 10,365 pairs) is an error estimate taken from
+apart, so their disagreement (2.4% in density over 9,895 pairs) is an error estimate taken from
 the data, not from the model. Writes `outputs/tables/validation.json`.
 
 > The single-day "hop" test this replaced could not be answered from this archive: the hop on
@@ -259,8 +259,8 @@ local structure, but the gain here does not justify the added complexity.
 **Physics-informed loss (supervised + rebuild).** Pure supervised learning can predict physically
 inconsistent parameters on real curves unlike the training set. The rebuild term forces
 self-consistency. Step 8 measured the trade over three runs per weight: it costs some accuracy on
-simulated sweeps (Te 0.056 -> 0.075 eV) but cuts the disagreement between sweep halves by 29% and
-removes a 6% density offset against the classical fit, so it stays. It does not change how many
+simulated sweeps (Te 0.056 -> 0.075 eV) but cuts the disagreement between sweep halves by 30% and
+removes a 5% density offset against the classical fit, so it stays. It does not change how many
 sweeps are recovered.
 
 **Recovery defined conservatively.** A sweep counts as recovered only if the parameters are
@@ -408,8 +408,9 @@ learning. Keep using `--no-maven`.
    - `outputs/tables/`, `outputs/figures/` and `outputs/checkpoints/pinn.pt`;
    - a link to the raw data (`ch3_rambha.zip`, 1.6 GB), which is too large to attach.
    The packaged version of all this is `../submission/RAMBHA-LP_Submission_SunilKumar.zip`.
-3. **Check the story holds:** the classical fit fails on 44% (F2) -> the network recovers 63% of
-   those (F5) -> checked four ways: simulated test sweeps, agreement with the classical fit,
+3. **Check the story holds:** the classical fit fails on 44% (F2), 57% of those because the
+   instrument clipped the sweep -> the network recovers 91% of the unclipped failures (F5) ->
+   checked four ways: simulated test sweeps, agreement with the classical fit,
    the mission density trend (F6) and up/down consistency (`validation.json`) -> stated with error
    bars, and with `classical.min_r2 = 0.90` given alongside the failure rate.
 4. **Commit** so there is a timestamped record.

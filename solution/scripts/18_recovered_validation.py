@@ -8,12 +8,12 @@ Every real-data check in steps 6 and 15 uses sweeps the classical fit already ha
 sweeps the network recovers from classical failures are accepted on one condition that does the
 work: the curve rebuilt from the network's parameters matches the sweep with R^2 >= 0.90. That R^2
 is taken on the linear current over the whole sweep, where the large saturation branch dominates,
-so it is a weaker test than the classical one. Four checks here look at the recovered sweeps
+so it is a weaker test than the classical one. Five checks here look at the recovered sweeps
 directly.
 
   (a) TWIN HALVES. Each commanded sweep has an up and a down half seconds apart. Where one half
-      passes the classical fit and the other half was recovered by the network, the classical
-      value on the twin is an independent reference for the recovered half.
+      passes the classical fit (and is not clipped) and the other half was recovered by the
+      network, the classical value on the twin is an independent reference for the recovered half.
 
   (b) THE CLASSICAL TEST, APPLIED TO THE NETWORK. Put the network's (Ne, Te, Vp) through the same
       test the classical fit must pass: in the classical retardation window [V_float,
@@ -27,10 +27,15 @@ directly.
       the network's error there. Their parameters only set the regime; the truth of each
       simulated curve is known.
 
-  (d) CLIPPING. On the 1 Mohm and 20 Mohm settings the front end saturates and the top of the
-      curve goes flat. Clipped sweeps are excluded from recovery (config.yaml, recovery); this
-      section shows why, by giving the same twin-half comparison for the clipped sweeps that
-      would otherwise have passed every recovery condition.
+  (d) CLIPPING. ADC channel 2's front end saturates on the 1 Mohm and 20 Mohm settings and the
+      top of the curve goes flat. Clipped sweeps are excluded from recovery (config.yaml,
+      recovery). The twin-half check cannot show why, because a clipped sweep's twin is almost
+      always clipped as well (only a handful of pairs have an unclipped classical twin).
+
+  (e) CLIP INJECTION. So the effect of clipping is measured directly: take 3,000 unclipped
+      sweeps that pass the classical fit, cut each one flat at 90%, 70% and 50% of its peak, and
+      compare the network's answers with those on the original curve. The real clipped sweeps
+      go flat from a median of about +1.4 V, between the 70% and 50% cases.
 
 Also draws F7: one real sweep the classical fit rejected, with the network's rebuilt curve.
 
@@ -60,7 +65,7 @@ def med_abs(x):
 def twin_halves(j):
     """(a) recovered half against the classical value on its twin."""
     j = j.copy()
-    j["cls"] = np.where(~j["failed"], "C", np.where(j["recovered"], "R", "X"))
+    j["cls"] = np.where(~j["failed"] & ~j["clipped"], "C", np.where(j["recovered"], "R", "X"))
     p = j.pivot_table(index=["timestamp", "segment"], columns="direction",
                       values=["cls", "Ne_cc_c", "Te_eV_c", "Ne_cc_m", "Te_eV_m"], aggfunc="first")
     cls = p["cls"].dropna()
@@ -168,7 +173,7 @@ def classical_style(sweeps, key_to_i, j, cfg):
                 "median_Te_network_over_local_slope": round(float(np.median(ratio)), 3) if ratio else None}
 
     return {"recovered": run(j[j["failed"] & j["recovered"]]),
-            "classical_pass_reference": run(j[~j["failed"]])}
+            "classical_pass_reference": run(j[~j["failed"] & ~j["clipped"]])}
 
 
 def hard_regime(model, j, sweeps, key_to_i, cfg, rng):
@@ -202,7 +207,7 @@ def hard_regime(model, j, sweeps, key_to_i, cfg, rng):
                 "Vp_V_median_abs": round(med_abs(p["Vp_V"] - truth[:, 2]), 3)}
 
     rec = j[j["failed"] & j["recovered"]].copy()
-    cls = j.assign(c=np.where(~j["failed"], "C", "F")).pivot_table(
+    cls = j.assign(c=np.where(~j["failed"] & ~j["clipped"], "C", "F")).pivot_table(
         index=["timestamp", "segment"], columns="direction", values="c", aggfunc="first")
     def twin_is_classical(r):
         other = "down" if r["direction"] == "up" else "up"
@@ -222,7 +227,7 @@ def clipping(j, sweeps, key_to_i, cfg):
     would = (j["Ne_cc_m"].between(lo_ne, hi_ne) & j["Te_eV_m"].between(lo_te, hi_te)
              & (j["recon_r2"] >= ccfg["min_r2"]) & (j["Ne_dex_std"] < 0.5))
     # the twin-half comparison, for failures that pass every condition except clipping
-    jj = j.assign(cls=np.where(~j["failed"], "C", np.where(would, "W", "X")))
+    jj = j.assign(cls=np.where(~j["failed"] & ~j["clipped"], "C", np.where(would, "W", "X")))
     p = jj.pivot_table(index=["timestamp", "segment"], columns="direction",
                        values=["cls", "clipped", "Ne_cc_c", "Te_eV_c", "Ne_cc_m", "Te_eV_m"],
                        aggfunc="first")
@@ -259,6 +264,37 @@ def clipping(j, sweeps, key_to_i, cfg):
         "failures_passing_all_but_clipping": int((fail & would & j["clipped"]).sum()),
         "twin_half_check_for_would_be_recoveries": by_clip,
     }
+
+
+def clip_injection(model, j, sweeps, key_to_i, cfg, rng):
+    """(e) what clipping does to the network, measured on real curves clipped on purpose."""
+    import torch
+    ok = j[~j["failed"] & ~j["clipped"]]
+    pick = ok.iloc[rng.choice(len(ok), size=min(3000, len(ok)), replace=False)]
+    sel = [sweeps[key_to_i[(t, i)]] for t, i in zip(pick["timestamp"], pick["idx"])]
+    X, elec = infer.prepare_input(sel, cfg)
+    grid = common_grid(cfg)
+    torch.manual_seed(cfg["train"]["seed"])
+    base = predict(model, X, cfg, mc_samples=cfg["validate"]["mc_samples"])
+    real_clipped = [sweeps[key_to_i[(t, i)]] for t, i in
+                    zip(j.loc[j["clipped"], "timestamp"], j.loc[j["clipped"], "idx"])]
+    _, e_real = infer.prepare_input(real_clipped, cfg)
+    reach = grid[np.argmax(e_real >= 0.998 * e_real.max(axis=1, keepdims=True), axis=1)]
+    out_ = {"n": len(sel), "real_clipped_plateau_start_V_median": round(float(np.median(reach)), 2),
+            "by_clip_level": {}}
+    for frac in (0.9, 0.7, 0.5):
+        Ec = np.minimum(elec, frac * elec.max(axis=1, keepdims=True))
+        torch.manual_seed(cfg["train"]["seed"])
+        p = predict(model, physics.to_input_np(Ec).astype(np.float32), cfg,
+                    mc_samples=cfg["validate"]["mc_samples"])
+        dn = np.log10(p["Ne_cc"]) - np.log10(base["Ne_cc"])
+        start = grid[np.argmax(Ec >= 0.998 * Ec.max(axis=1, keepdims=True), axis=1)]
+        out_["by_clip_level"][f"{frac:.1f}"] = {
+            "plateau_start_V_median": round(float(np.median(start)), 2),
+            "Ne_change_percent_median": round(float((10 ** np.median(dn) - 1) * 100), 1),
+            "Te_change_eV_median": round(float(np.median(p["Te_eV"] - base["Te_eV"])), 3),
+            "Te_ratio_median": round(float(np.median(p["Te_eV"] / base["Te_eV"])), 2)}
+    return out_
 
 
 def figure(model, j, sweeps, key_to_i, cfg):
@@ -330,6 +366,8 @@ def main():
     print(json.dumps(report["b_classical_test_on_network_parameters"], indent=2))
     report["d_clipping"] = clipping(j, sweeps, key_to_i, cfg)
     print(json.dumps(report["d_clipping"], indent=2))
+    report["e_clip_injection"] = clip_injection(model, j, sweeps, key_to_i, cfg, rng)
+    print(json.dumps(report["e_clip_injection"], indent=2))
     report["c_simulated_hard_regime"] = hard_regime(model, j, sweeps, key_to_i, cfg, rng)
     print(json.dumps(report["c_simulated_hard_regime"], indent=2))
     report["figure_F7"] = figure(model, j, sweeps, key_to_i, cfg)

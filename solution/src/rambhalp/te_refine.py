@@ -51,8 +51,8 @@ enabling this cannot alter those results.
 
 IMPORTANT CAVEAT, and it is the reason this defaults to off. Every number above is SYNTHETIC
 hold-out. This project has already been caught once by that distinction: the physics-loss
-ablation showed a term that looks harmful on synthetic data while making real densities 29% more
-repeatable between sweep halves and removing a 6% offset against the classical fit. A synthetic gain is not a real-data gain until the real-data checks say so
+ablation showed a term that looks harmful on synthetic data while making real densities 30% more
+repeatable between sweep halves and removing a 5% offset against the classical fit. A synthetic gain is not a real-data gain until the real-data checks say so
 — agreement with the classical method, ramp-pair consistency, and recovery fraction. Run
 scripts/14_te_refine_eval.py before turning this on.
 """

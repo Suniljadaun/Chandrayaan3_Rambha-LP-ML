@@ -38,9 +38,9 @@ def main():
 
     with open(out(cfg, "tables", "recovery_summary.json")) as f:
         rec = json.load(f)
-    figures.fig_recovery(rec["n_total_sweeps"], rec["n_classical_ok"],
-                         rec["n_ml_recovered_from_failed"], cfg)
-    figures.fig_yield_ab(cdf, rec["n_classical_ok"], rec["n_ml_recovered_from_failed"], cfg)
+    n_cl = rec.get("n_classical_ok_unclipped", rec["n_classical_ok"])   # clipped passes are not usable
+    figures.fig_recovery(rec["n_total_sweeps"], n_cl, rec["n_ml_recovered_from_failed"], cfg)
+    figures.fig_yield_ab(cdf, n_cl, rec["n_ml_recovered_from_failed"], cfg)
 
     ml_df = pd.read_csv(out(cfg, "tables", "ml_predictions.csv"))
     figures.fig_density_trend(ml_df, cfg)

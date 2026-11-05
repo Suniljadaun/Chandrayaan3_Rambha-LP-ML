@@ -76,10 +76,16 @@ def synthetic_holdout_error(model, cfg, n=4000):
 
 
 def agreement_with_classical(ml_rows, classical_rows):
-    """Compare ML vs classical on sweeps classical fit cleanly (matched by timestamp+idx)."""
+    """Compare ML vs classical on sweeps classical fit cleanly (matched by timestamp+idx).
+
+    Clipped sweeps are left out (config.yaml, recovery): on them both the network and the
+    classical fit read a saturated, flat top, so neither value is a valid reference.
+    """
     cmap = {(r.timestamp, r.idx): r for r in classical_rows if not r.failed}
     dNe, dTe = [], []
     for m in ml_rows:
+        if m.get("clipped"):
+            continue
         key = (m["timestamp"], m["idx"])
         if key in cmap:
             c = cmap[key]
@@ -91,6 +97,8 @@ def agreement_with_classical(ml_rows, classical_rows):
         "n_overlap": len(dNe),
         "Ne_dex_median_diff": float(np.median(dNe)) if dNe else float("nan"),
         "Te_median_diff_eV": float(np.median(dTe)) if dTe else float("nan"),
+        "Ne_dex_median_abs_diff": float(np.median(np.abs(dNe))) if dNe else float("nan"),
+        "Te_median_abs_diff_eV": float(np.median(np.abs(dTe))) if dTe else float("nan"),
     }
 
 

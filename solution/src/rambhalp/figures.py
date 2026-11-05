@@ -108,7 +108,7 @@ def fig_recovery(n_total, n_classical_ok, n_recovered, cfg):
 
 
 def _draw_recovery(ax, n_classical_ok, n_recovered):
-    ax.bar(["Classical\nonly"], [n_classical_ok], color=C_GREY, label="Classical")
+    ax.bar(["Classical\nonly"], [n_classical_ok], color=C_GREY, label="Classical (unclipped)")
     ax.bar(["Classical\n+ network"], [n_classical_ok], color=C_GREY)
     ax.bar(["Classical\n+ network"], [n_recovered], bottom=[n_classical_ok],
            color=C_TEAL, label="Recovered by network")

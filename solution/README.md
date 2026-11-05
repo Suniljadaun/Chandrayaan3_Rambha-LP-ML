@@ -26,29 +26,31 @@ It is validated three ways, none of which requires ground truth (there is none f
 | | sweeps | share |
 |---|---|---|
 | classical fit succeeds | 16,596 | 55.6% |
+| …of which clipped (not usable) | 1,449 | |
 | classical fails | 13,266 | 44.4% |
-| …clipped by the instrument (not recoverable) | 7,330 | 55.3% of failures |
-| …recovered by the network | 5,410 | 40.8% of failures (91% of unclipped ones) |
-| **combined usable** | **22,006** | **73.7%** |
+| …clipped by the instrument (not recoverable) | 7,625 | 57.5% of failures |
+| …recovered by the network | 5,115 | 38.6% of failures (91% of unclipped ones) |
+| **combined usable** | **20,262** | **67.9%** |
 
-**Clipping.** 28% of all sweeps are clipped by the instrument's front end (it saturates at about
-78 mV on the 1 MΩ and 20 MΩ settings). The network's values on clipped sweeps are artefacts
-(density 68% high and Te 0.43 eV low against the classical twin half), so clipped sweeps are never
-counted as recovered. `scripts/18_recovered_validation.py` has the evidence.
+**Clipping.** 30% of all sweeps are clipped: the front end saturates and the top of the curve goes
+flat (73% of ADC channel 2's 1 MΩ sweeps, all of its 20 MΩ sweeps, 9% of channel 1's 20 MΩ sweeps).
+Neither method can read a clipped curve, so clipped sweeps are excluded from both. Clipping real
+sweeps on purpose shows why: a flat top from about +3 V cuts the network's Te to about a third and
+raises its density by about 10% (`scripts/18_recovered_validation.py`).
 
 **Accuracy** on 4,000 held-out synthetic sweeps: density 0.021 dex (~5%), temperature 0.078 eV
 (~20% at the archive's typical 0.4 eV), plasma potential 0.141 V.
 
 **Validation without ground truth.**
 
-- *Independent method.* On the 16,596 sweeps both methods fit there is no systematic density
-  offset (1.0%) and individual sweeps differ by 4.7%. Temperature differs by 0.097 eV (27%) per
-  sweep, with little offset.
-- *Recovered sweeps.* For 2,410 recovered sweeps the other half of the same commanded sweep passes
-  the classical fit; against it the recovered density differs by 5.2%, the same level as where both
-  methods work (4.8%).
+- *Independent method.* On the 15,147 unclipped sweeps both methods fit there is no meaningful
+  density offset (1.4%) and individual sweeps differ by 4.4%. Temperature differs by 0.091 eV (25%)
+  per sweep, with little offset.
+- *Recovered sweeps.* For 2,157 recovered sweeps the other half of the same commanded sweep passes
+  the classical fit unclipped; against it the recovered density differs by 5.3%, the same level as
+  where both halves pass (4.7%).
 - *Instrument against itself.* Every commanded sweep is a triangle, so its two halves are
-  independent measurements seconds apart: 10,365 pairs agree to 0.010 dex (2.4%), r = 0.993,
+  independent measurements seconds apart: 9,895 pairs agree to 0.010 dex (2.4%), r = 0.992,
   with no directional bias.
 - *Mission timeline.* The network never sees the date, yet its daily medians rise from 246 to
   500 cm⁻³ (Spearman 0.78, p = 0.008). The classical fit shows the same rise, so this is a
@@ -79,9 +81,9 @@ analysis. Getting there produced two findings of wider use:
 - *A synthetic hold-out cannot adjudicate a sim-to-real question.* Demonstrated twice, in
   opposite directions. The physics-loss term looks actively harmful on synthetic data (removing
   it improves temperature error 0.075 → 0.056 eV over three runs) while on real sweeps it cuts
-  the disagreement between sweep halves by 29% and removes a 6% density offset against the
+  the disagreement between sweep halves by 30% and removes a 5% density offset against the
   classical fit. Conversely, a temperature transformation that nearly halves synthetic error
-  (22.3% → 12.2%, about 13σ over three seeds) degrades real repeatability by 32% and was rejected.
+  (22.3% → 12.2%, about 13σ over three seeds) degrades real repeatability by 69% and was rejected.
 
 **A quantified account of why temperature is the hard parameter.** A Fisher-information analysis
 gives corr(Te, Vp) = +0.92 — temperature and plasma potential are nearly indistinguishable in

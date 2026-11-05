@@ -255,18 +255,19 @@ maven:
   te_eV: [0.1, 5.0]
 
 recovery:
-  # A sweep the instrument clipped cannot count as recovered. On the 1 Mohm and 20 Mohm
-  # settings the front end saturates at about 78 mV across the resistor (78 nA and 3.9 nA), and
-  # the top of the curve goes flat; no clipping occurs at 49.9 kohm. 28% of all sweeps are
-  # clipped. The network imitates a flat top by choosing a very low Te, so on clipped sweeps its
-  # values are artefacts: against the classical value on the unclipped twin half, density comes
-  # out 68% high and Te 0.43 eV low (scripts/18_recovered_validation.py). A curve counts as
-  # clipped when its last clip_top_points grid points vary by less than clip_flat_tolerance of
-  # its peak and it first reaches 99.8% of that peak below clip_reach_V.
+  # A clipped sweep is unusable for both methods: the front end saturates and the top of the
+  # curve goes flat. By ADC channel and resistor the clipped share is 73% (channel 2, 1 Mohm),
+  # 100% (channel 2, 20 Mohm), 9% (channel 1, 20 Mohm) and about 0.1% elsewhere: 30% of all
+  # sweeps. The forward model has no saturation, so the network imitates a plateau with a very
+  # low Te. Measured on real sweeps clipped on purpose (scripts/18_recovered_validation.py): a
+  # flat top from about +3 V cuts the network's Te to about a third and raises its density by
+  # about 10%. The classical fit is no better: on clipped sweeps its saturation branch is almost
+  # entirely the plateau. A sweep counts as clipped when its last clip_flat_points bins (highest
+  # bias) all lie within clip_flat_tolerance of its current range below its maximum; the test
+  # runs on the binned sweep, because resampling pads a short sweep with a repeated last value.
   exclude_clipped: true
-  clip_top_points: 40            # the top 40 of 240 grid points, about +8 to +12 V
-  clip_flat_tolerance: 0.002
-  clip_reach_V: 8.0
+  clip_flat_points: 5            # 5 bins = the top 0.5 V of the sweep
+  clip_flat_tolerance: 0.001     # fraction of the sweep's current range
 
 validate:
   # Pre-hop (baseline) and terminator dates for the blind physics test. NOTE: this was
