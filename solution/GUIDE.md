@@ -1,98 +1,99 @@
-# GUIDE — Run the RAMBHA-LP solution from zero to submission
+# GUIDE: run the RAMBHA-LP solution from zero to the reported results
 
-This is the hand-held walkthrough. It assumes **nothing** is set up. Every command is explained:
-*what* it does, *when* you run it, and *why* it matters. Read top to bottom the first time; after
-that, §3 (the one-command run) is all you need day to day.
+This is the step-by-step walkthrough. It assumes nothing is set up. Every command says *what* it
+does, *when* you run it and *why* it matters. Read it top to bottom once; after that, §3 is all you
+need to reproduce the main results.
 
-There are two ways to run this project, and you can mix them:
+There are two ways to run the project, and you can mix them:
 
-- **Laptop-only (CPU).** The whole pipeline runs on a normal laptop in a few minutes with the
-  default settings. This is the simplest path and is enough to submit.
-- **Laptop + GPU (Kaggle / Colab).** Only the *training* steps benefit from a GPU. You train on
-  Kaggle or Colab, download one checkpoint file, and run the rest locally. Use this when you want
-  the bigger, longer training runs for the final report.
+- **Laptop only (CPU).** Everything runs on a normal laptop. Training is the slow step.
+- **Laptop + GPU (Kaggle / Colab).** Only *training* benefits from a GPU. Train there, download one
+  checkpoint file, and run the rest locally (§7, §8).
 
-> **Mental model.** The project is a 7-step pipeline. Steps 1–2 prepare data, steps 3–4 train the
-> model, steps 5–7 apply it and make the results. The only heavy step is training (3, 4). Every
-> step writes its output to `outputs/` and the next step reads it — so you can stop, inspect, and
+> **Mental model.** Steps 1 to 7 are the main pipeline: steps 1 and 2 prepare data, step 3 trains
+> the network, steps 5 to 7 apply it and produce the results. Step 4 (Mars pre-training) was tried
+> and abandoned. Steps 8 to 16 are the experiments behind individual results in the report (§12).
+> Every step writes to `outputs/` and the next step reads from there, so you can stop, inspect and
 > resume anywhere.
 
 ---
 
 ## Table of contents
 
-1. What you are building (the 60-second version)
+1. What you are building
 2. Prerequisites and installation
 3. The one-command run (start here)
 4. What each step does, and what to check
-5. Reading the outputs (the numbers that go in the report)
+5. Reading the outputs (the numbers in the report)
 6. Design decisions you must be able to defend
-7. Training on **Kaggle** (GPU) — exact clicks
-8. Training on **Google Colab** (GPU) — exact clicks
-9. The MAVEN (Mars) transfer stage
-10. Tuning, troubleshooting, and common mistakes
+7. Training on **Kaggle** (GPU)
+8. Training on **Google Colab** (GPU)
+9. The MAVEN (Mars) transfer stage, and why it was abandoned
+10. Tuning, troubleshooting and common mistakes
 11. Assembling the submission
-12. A realistic 2-week schedule
+12. The experiment scripts (steps 8 to 16)
 
 ---
 
-## 1. What you are building (the 60-second version)
+## 1. What you are building
 
-Chandrayaan-3's RAMBHA-LP is a Langmuir probe: it sweeps a bias voltage from −12 V to +12 V and
-measures the current the surrounding lunar plasma pushes onto it. The *shape* of that current-vs-
-voltage (I–V) curve encodes three numbers: electron density **Ne**, electron temperature **Te**,
-and plasma potential **Vp**.
+Chandrayaan-3's RAMBHA-LP is a spherical Langmuir probe on the Vikram lander. It sweeps its bias
+voltage from -12 V to +12 V and back, and measures the current collected from the surrounding
+lunar plasma. The *shape* of that current-voltage (I-V) curve encodes three numbers: electron
+density **Ne**, electron temperature **Te** and plasma potential **Vp**.
 
-The classical way to get those numbers (fit an exponential to part of the curve) works on clean
-sweeps and **fails** on noisy, low-density, or oddly-shaped ones. This project trains a small
-neural network to invert the *whole* curve into (Ne, Te, Vp), constrained by the actual Langmuir
-physics, so it can recover sweeps the classical method throws away — with honest uncertainty,
-because there is no ground truth for lunar plasma.
+The classical way to get them (fit a straight line to ln(I) below the plasma potential, then use
+the saturation branch) works on clean sweeps and **fails** on noisy, faint or oddly shaped ones. On
+this archive it fails on 13,266 of 29,862 sweeps (44%). This project trains a neural network on
+simulated sweeps, with a loss that also checks the physics, to read the *whole* curve into
+(Ne, Te, Vp). It recovers 8,343 of those failures (63%), raising the usable part of the archive
+from 56% to 84%, with error bars, because there is no ground truth for lunar plasma.
 
-That is the entire thesis: **classical fails on some sweeps; a physics-informed network recovers a
-defensible fraction of them.** Everything in `solution/` exists to produce that claim with receipts.
+The thesis in one line: **the classical fit discards many sweeps; a physics-informed network
+recovers most of them, and agrees with the classical fit where both work.**
 
 ---
 
 ## 2. Prerequisites and installation
 
-You need Python 3.10 or newer. Check:
+You need Python 3.10 or newer:
 
 ```bash
 python --version        # should print 3.10.x or higher
 ```
 
-Create an isolated environment so this project's packages don't collide with anything else
-(this is standard hygiene — a fresh sandbox per project):
+Create an isolated environment so this project's packages do not collide with anything else:
 
 ```bash
 cd solution                       # the folder this GUIDE lives in
 python -m venv .venv               # make a virtual environment named .venv
 source .venv/bin/activate          # activate it   (Windows: .venv\Scripts\activate)
-pip install -r requirements.txt    # install numpy, pandas, matplotlib, torch, ...
+pip install -r requirements.txt    # numpy, pandas, matplotlib, torch, ...
 ```
 
-`requirements.txt` pins the libraries. The only large one is **PyTorch** (`torch`); on a laptop the
-CPU build is fine and is what pip installs by default. If the install is slow, that's the torch
-download — let it finish once; it is cached afterwards.
+(`environment.yml` does the same with conda.) The only large package is **PyTorch**; the CPU build
+pip installs by default is fine on a laptop.
 
-**Point the code at your data.** Open `config.yaml` and check `data.archive_root`. It is preset to
+**Get the data.** Download the RAMBHA-LP archive from ISRO's PRADAN portal
+(https://pradan.issdc.gov.in/ch3/), release `LTA_RAMBHA-LP_August2024_final`, and unzip it so that
+this path exists next to `solution/`:
 
 ```
-archive_root: "../Chandrayaan-3/ch3_rambha/LTA_RAMBHA-LP_August2024_final"
+../Chandrayaan-3/ch3_rambha/LTA_RAMBHA-LP_August2024_final
 ```
 
-which is correct if `solution/` sits next to your `Chandrayaan-3/` folder (it does). If you ever
-move the archive, update this one line — no code changes needed.
+That is the preset value of `data.archive_root` in `config.yaml`. If you put the archive elsewhere,
+change that one line; no code changes are needed. The pipeline uses only the **rawB** level
+(photoemission removed), so the `raw` and `rawA` day folders can be deleted to save space.
 
-> **Why one config file?** So that every path and every hyperparameter lives in exactly one place.
-> When a reviewer asks "what density range did you assume?" you point at `config.yaml`, not at a
-> number buried in a script. This is also what makes runs reproducible.
+> **Why one config file?** Every path and every number the analysis depends on lives in
+> `config.yaml`. When someone asks "what density range did you assume?", you point at the file, not
+> at a number buried in a script. It is also what makes the runs reproducible.
 
-Optional: confirm the environment is healthy before a full run:
+Check the environment before a full run:
 
 ```bash
-pytest -q tests/        # physics + IO sanity checks; the IO test skips if data is missing
+pytest -q tests/        # 27 pass, 1 skipped, 1 expected failure
 ```
 
 ---
@@ -100,343 +101,343 @@ pytest -q tests/        # physics + IO sanity checks; the IO test skips if data 
 ## 3. The one-command run (start here)
 
 ```bash
-python scripts/run_all.py
+python scripts/run_all.py --no-maven
 ```
 
-That runs steps 1→7 in order and fills `outputs/`. On a laptop it takes a few minutes. When it
-finishes you'll have tables, a trained model, validation numbers, and six figures.
+This runs steps 1, 2, 3, 5, 6 and 7 in order and fills `outputs/`. It is the run behind every
+number in the report: lunar-only model, checkpoint `pinn.pt`.
 
-Two useful variants:
+Run the smoke test first, the very first time:
 
 ```bash
-python scripts/run_all.py --quick      # tiny smoke test (3 files, few epochs) — proves it works
-python scripts/run_all.py --no-maven   # skip the Mars-transfer step (lunar-only model)
+python scripts/run_all.py --quick      # 3 files, few epochs: proves the setup works
 ```
 
-Run `--quick` first the very first time. If it completes without error, your setup is correct and
-you can launch the full run with confidence. **Always smoke-test before the long run** — you find
-problems in 30 seconds instead of 5 minutes.
+If `--quick` finishes without error, launch the full run. **Always smoke-test before the long
+run**: you find problems in seconds instead of after a long training.
 
-If you'd rather run steps one at a time (recommended while you're learning, so you can inspect each
-output), use the `Makefile`:
+> Do not drop `--no-maven`. Without it the pipeline also runs step 4, and step 5 then uses the Mars
+> pre-trained model, which was about 15 times worse (§9).
+
+To run the steps one at a time (useful while learning, so you can inspect each output), use the
+`Makefile`:
 
 ```bash
 make baseline   # step 1
 make synth      # step 2
 make train      # step 3
-make maven      # step 4  (optional)
 make apply      # step 5
 make validate   # step 6
 make figures    # step 7
-# or simply:
-make all
+make test       # the tests
+make clean      # delete outputs/ to start fresh (also deletes pinn.pt: see §11)
 ```
+
+(`make maven` and `make all` include step 4; avoid them for the reported results.)
 
 ---
 
 ## 4. What each step does, and what to check
 
-**Step 1 — `01_build_classical_baseline.py` (classical baseline).**
-Parses every science file in the archive, slices each into individual sweeps using the ops
-metadata, bins the repeated samples into a clean curve, and runs the classical Langmuir fit on
-each. Writes `outputs/tables/classical_baseline.csv` (one row per sweep) and caches the parsed
-sweeps to `outputs/cache/sweeps.pkl` so later steps don't re-parse.
-*Check:* it prints the archive-wide **failure rate**. Expect the classical method to succeed on
-roughly a third of sweeps (29% on the current archive) and fail on the rest — that failing set is
-precisely what the ML model
-will target. If it says 0 sweeps, your `archive_root` is wrong.
+**Step 1: `01_build_classical_baseline.py` (classical baseline).**
+Reads every science file in the archive, uses the matching ops file to cut it into commanded
+sweeps, splits each triangle (-12 to +12 to -12 V) into an up half and a down half, averages the
+repeated samples at each 0.1 V step, and runs the classical fit on each of the 29,862 sweeps.
+Writes `outputs/tables/classical_baseline.csv` (one row per sweep) and caches the sweeps in
+`outputs/cache/sweeps.pkl` so later steps do not re-read the archive.
+*Check:* it prints the archive-wide failure rate: **16,596 pass (55.6%), 13,266 fail (44.4%)**.
+The failing set is what the network targets. If it reports 0 sweeps, `archive_root` is wrong.
 
-**Step 2 — `02_generate_synthetic.py` (synthetic data).**
-Builds tens of thousands of *labelled* sweeps from the OML forward model — curves for which we
-know the true (Ne, Te, Vp) because we chose them. Saved to `outputs/cache/synth_*.npz`.
-*Check:* it prints the label ranges. This is the network's textbook: it can only learn to invert
-curves whose parameters fall in these ranges, so they must bracket the real lunar values.
+**Step 2: `02_generate_synthetic.py` (synthetic data).**
+Builds 40,000 training and 4,000 test sweeps from the OML forward model, with known (Ne, Te, Vp):
+Ne log-uniform 2 to 1000 cm^-3, Te uniform 0.05 to 2 eV, Vp uniform -12 to +6 V. Each curve is
+evaluated on the same 240-point voltage grid as the real sweeps, then given a small baseline tilt
+and noise measured per probe channel. Saved to `outputs/cache/synth_train.npz` and
+`synth_val.npz` (arrays X of curves and Y of true values).
+*Check:* it prints the label ranges. The network can only invert curves inside these ranges, so
+they must cover the real values; `tests/test_domain_overlap.py` checks this.
 
-**Step 3 — `03_train_pinn.py` (train).**
-Trains the network with the **physics-informed loss**: part of the loss is ordinary supervised
-error against the synthetic labels; the other part pushes the network's predicted parameters back
-through the OML forward model and demands the reconstructed curve match the input. Writes
-`outputs/checkpoints/pinn.pt` and `outputs/tables/train_history.json`.
-*Check:* the loss should fall steadily and the validation loss should track it (not blow up). The
-history feeds figure F3.
+**Step 3: `03_train_pinn.py` (train).**
+Trains the network (240 -> 256 -> 256 -> 128 -> 3, dropout 0.10) for 250 epochs with the
+**physics-informed loss**: supervised error against the synthetic labels, plus 0.5 times a term
+that pushes the predicted parameters back through the OML model and requires the rebuilt curve to
+match the input. Writes `outputs/checkpoints/pinn.pt` and `outputs/tables/train_history.json`.
+*Check:* the training and validation losses should fall together and level off.
 
-**Step 4 — `04_maven_pretrain.py` (MAVEN transfer, optional).**
-Pretrains on Mars-like (denser, hotter) sweeps, then fine-tunes on the lunar synthetic set. Saves
-`outputs/checkpoints/maven_transfer.pt`. If `maven.enabled` is false, it cleanly no-ops.
-*Check:* it records which data mode it used (real-archive-reachable vs MAVEN-like synthetic) in
-`outputs/tables/maven_mode.json`. See §9.
+**Step 4: `04_maven_pretrain.py` (MAVEN transfer). Not used.**
+Pre-trains on Mars-like sweeps, then fine-tunes on the lunar set, saving `maven_transfer.pt`. It
+made the model about 15 times worse and was abandoned (§9). `--no-maven` skips it.
 
-**Step 5 — `05_apply_and_recover.py` (apply + recover).**
-Loads the best available checkpoint (transfer if present, else the plain PINN), applies it to every
-*real* sweep, reconstructs each through the physics model to score the fit, and counts how many
-previously-**failed** sweeps are now recovered (plausible params + good reconstruction + tight
-uncertainty). Writes `outputs/tables/ml_predictions.csv` and `outputs/tables/recovery_summary.json`.
-*Check:* `recovery_summary.json` holds your headline number — how many of the classical failures
-the model recovered.
+**Step 5: `05_apply_and_recover.py` (apply and recover).**
+Applies `pinn.pt` to every real sweep with 50 Monte-Carlo dropout passes (mean = answer, spread =
+error bar), rebuilds each sweep through the OML model, and marks a sweep **recovered** if Ne is
+1 to 100,000 cm^-3, Te is 0.03 to 5 eV, the rebuilt curve has R^2 of at least 0.90, and the density
+error bar is below 0.5 dex. Writes `outputs/tables/ml_predictions.csv` and `recovery_summary.json`.
+*Check:* `recovery_summary.json` holds the headline: **8,343 of 13,266 failures recovered
+(62.9%); combined usable sweeps 24,939 (83.5%)**.
 
-**Step 6 — `06_validate_hop.py` (validate).**
-Three honest checks, since there's no ground truth: (a) error on a synthetic hold-out where the
-truth is known; (b) agreement with the classical method on sweeps it *did* fit; (c) the **density
-trend** across the mission — the model is never told the date, so a smooth, monotonic day-to-day
-density curve is evidence it learned physics rather than a dataset artefact; (d) **ramp
-consistency** — each commanded sweep is a triangle, so its rising and falling halves measure the
-same plasma seconds apart, and their disagreement is a systematic error bar derived from the data
-rather than from the model. Writes `outputs/tables/validation.json`.
+**Step 6: `06_validate_hop.py` (validate).**
+Four checks, since there is no ground truth:
+(a) error on the 4,000 simulated test sweeps, where the truth is known;
+(b) agreement with the classical fit on the 16,596 sweeps it handles (density within about 1%);
+(c) the **density trend** across the mission: the network is never told the date, so a smooth,
+rising day-to-day median (Spearman 0.78 over 10 well-sampled days) is evidence it learned physics
+rather than an artefact;
+(d) **ramp consistency**: the up and down halves of each sweep measure the same plasma seconds
+apart, so their disagreement (2.6% in density over 12,418 pairs) is an error estimate taken from
+the data, not from the model. Writes `outputs/tables/validation.json`.
 
-> The single-day "hop" test this replaced was not answerable from this archive: the terminator
-> session (3 Sep 2023) holds ~200 sweeps against ~1300 the day before, so a couple of dozen
-> recovered sweeps were being asked to settle a physical prediction. Its pre-hop/terminator
-> numbers are still reported, as descriptive context with their counts attached, never as a
-> pass/fail.
+> The single-day "hop" test this replaced could not be answered from this archive: the hop on
+> 2 Sep 2023 was recorded in a fixed-voltage mode with no sweeps, and the 3 Sep terminator session
+> has 408 sweeps (3 recovered) against 2,596 on 2 Sep. The pre-hop and terminator medians are
+> still reported, with their counts, as context only.
 
-**Step 7 — `07_make_figures.py` (figures).**
-Renders F1–F6 into `outputs/figures/`. These are report-ready.
+**Step 7: `07_make_figures.py` (figures).**
+Renders F1 to F6 and `Fig_yield_ab.png` into `outputs/figures/` at 300 dpi.
 
 ---
 
-## 5. Reading the outputs (the numbers that go in the report)
-
-After a full run, `outputs/` contains:
+## 5. Reading the outputs (the numbers in the report)
 
 ```
 outputs/
 ├── tables/
-│   ├── classical_baseline.csv     per-sweep classical params + failed + reason
-│   ├── ml_predictions.csv         per-sweep ML params + uncertainty + reconstruction R^2
-│   ├── recovery_summary.json      ★ headline: recovered count + combined yield
-│   ├── validation.json            ★ synthetic error, classical agreement, density trend,
-│   │                                 ramp consistency
-│   ├── train_history.json         loss curves
-│   └── maven_mode.json            which MAVEN data mode was used
+│   ├── classical_baseline.csv       per-sweep classical Ne, Te, Vp, R^2, pass/fail + reason
+│   ├── ml_predictions.csv           per-sweep network Ne, Te, Vp, error bars, rebuild R^2, recovered
+│   ├── recovery_summary.json        * headline: recovered count and combined yield
+│   ├── validation.json              * simulated error, classical agreement, density trend,
+│   │                                   ramp consistency
+│   ├── train_history.json           loss curves (figure F3)
+│   ├── uncertainty_calibration.json are the error bars honest? (step 15)
+│   ├── physics_ablation.json        effect of the physics loss weight (step 8)
+│   ├── te_refine_eval.json          the rejected temperature refinement (step 14)
+│   └── fisher_bound.json            theoretical limit on Te accuracy (step 16)
 ├── checkpoints/
-│   ├── pinn.pt                    lunar-only model
-│   └── maven_transfer.pt          Mars-pretrained model (if step 4 ran)
+│   └── pinn.pt                      the trained network behind the report
+├── cache/                           sweeps.pkl, synth_train.npz, synth_val.npz
 └── figures/
-    ├── F1_example_sweep.png       a sweep + classical fit
-    ├── F2_failure_map.png         classical failure rate per day
-    ├── F3_training_curves.png     physics-informed training
-    ├── F4_synthetic_scatter.png   predicted vs true (best-case accuracy)
-    ├── F5_recovery.png            ★ classical vs classical+ML yield
-    └── F6_density_trend.png         ★ per-day recovered density; thin days drawn hollow
+    ├── F1_example_sweep.png         a sweep with its classical fit
+    ├── F2_failure_map.png           classical failure rate per day
+    ├── F3_training_curves.png       training and validation loss
+    ├── F4_synthetic_scatter.png     predicted vs true on the 4,000 test sweeps
+    ├── F5_recovery.png              classical alone vs classical + network
+    ├── F6_density_trend.png         * per-day recovered density; thin days drawn hollow
+    └── Fig_yield_ab.png             * F2 and F5 side by side, as used in the report
 ```
 
-The two starred JSONs and the two starred figures ARE your results section. Quote numbers from the
-JSONs directly — never round a claim beyond what the file says.
+Experiments 9 to 12 write to `outputs_2pop/` instead (§12).
 
-**How to talk about the numbers honestly.** "Recovered N of M failed sweeps" is only true if
-`recovery_summary.json` says so. The synthetic hold-out error in `validation.json` is your *best
-case* (physics matching physics); real recoveries will be looser. Always pair a recovered value
-with its uncertainty column from `ml_predictions.csv`.
+**Quote numbers straight from the files** and never round a claim beyond what the file says. The
+simulated-sweep error in `validation.json` is the *best case*; real accuracy is looser, so always
+pair a recovered value with its error-bar column from `ml_predictions.csv`.
 
 ---
 
 ## 6. Design decisions you must be able to defend
 
-These are the choices a supervisor or reviewer will probe. Each is stated as *"I chose X over Y
-because ___; the cost is ___."*
+Each is stated as *"I chose X over Y because ___; the cost is ___."*
 
-**Forward model = OML for a sphere.** I chose Orbit-Motion-Limited theory over thin-sheath models
-because RAMBHA-LP is a small spherical probe in a tenuous plasma where the Debye length is large
-compared to the probe — the OML regime. The cost: OML overestimates current when that assumption
-weakens (denser plasma), which is one reason I report uncertainty rather than point values.
+**Forward model = OML for a sphere.** I chose Orbital-Motion-Limited theory because the Debye
+length (about 22 cm at 450 cm^-3 and 0.4 eV) is about nine times the 2.5 cm probe radius, which
+is the OML regime. Above Vp I use a sheath-expansion exponent of 0.40 fitted to real sweeps rather
+than the textbook 1.0, because it fits them much better (median R^2 0.998 against 0.972). The cost:
+one fixed exponent for every sweep, which Liu et al. (2023) show can bias density; it is the largest
+known systematic and the top item of future work.
 
-**Train on synthetic, not on real labels.** There are no real labels for lunar plasma, so I teach
-the network on physics I trust (OML sweeps with known parameters). The cost: the model is only as
-right as the forward model; I mitigate this with the physics-reconstruction loss (the prediction
-must rebuild the *observed* curve) and by validating on the mission-wide density trend.
+**Train on simulated, not real, labels.** There are no real labels for lunar plasma, so the network
+learns from OML sweeps with known parameters, with ranges and noise chosen by measuring the real
+archive. The cost: the model is only as right as the forward model. I mitigate this with the
+physics term and with four checks on real data (§4, step 6).
 
-**MLP, not a CNN.** The curve is short (240 points), smooth, and already on a common grid, so a
-fully-connected network trains in minutes on CPU and is trivial to explain. The cost: a CNN could
-exploit local structure, but the gain is marginal here and the added complexity is not worth
-defending.
+**MLP, not a CNN.** The curve is short (240 points), smooth and on a common grid, so a fully
+connected network trains quickly on CPU and is easy to explain. The cost: a CNN could exploit
+local structure, but the gain here does not justify the added complexity.
 
-**Physics-informed loss (supervised + reconstruction).** Pure supervised learning would fit the
-labels but could predict physically inconsistent parameters on out-of-distribution real curves. The
-reconstruction term forces self-consistency and gives the loss *teeth on unlabelled real data*. The
-cost: a second loss weight (`w_physics`) to tune.
+**Physics-informed loss (supervised + rebuild).** Pure supervised learning can predict physically
+inconsistent parameters on real curves unlike the training set. The rebuild term forces
+self-consistency. Step 8 measured the trade: it costs some accuracy on simulated sweeps (Te 0.055
+-> 0.078 eV) but buys 10 percentage points of real recovery and a third less disagreement between
+sweep halves, so it stays.
 
-**Recovery defined conservatively.** A sweep counts as "recovered" only if the predicted params are
-in physically plausible bands, the reconstruction R² clears the same threshold as the classical
-fit, and the MC-dropout uncertainty is bounded. The cost: I under-count borderline recoveries — but
-an under-count is the honest side to err on.
+**Recovery defined conservatively.** A sweep counts as recovered only if the parameters are
+plausible, the rebuilt curve clears the same R^2 of 0.90 as the classical fit, and the density
+error bar is bounded. The cost: borderline sweeps are under-counted, which is the honest side to
+err on.
 
-**MC-dropout for uncertainty.** I keep dropout active at inference and average many passes; the
-spread is the uncertainty. It's cheap and defensible. The cost: it is an approximation to a full
-Bayesian treatment, which I note as future work.
+**MC dropout for uncertainty.** Dropout stays on at prediction time and 50 passes are averaged; the
+spread is the error bar (Gal & Ghahramani 2016). Step 15 checked it: density and Vp bars are about
+three times wider than needed (conservative), Te bars are about right. The cost: it measures the
+network's own uncertainty, not errors in the physics model.
 
-**MAVEN transfer is optional and gated.** Per the project's own Day-32 rule, if the Mars transfer
-fights the pipeline it is frozen as future work rather than forced. The cost: the headline model may
-be lunar-only — which the project explicitly accepts ("a complete lunar project beats a half-
-finished two-planet one").
+**MAVEN transfer frozen as future work.** Per the project's own Day-32 rule, the Mars stage was
+tested, made the model about 15 times worse, and was dropped. The headline model is lunar-only.
 
 ---
 
-## 7. Training on Kaggle (GPU) — exact clicks
+## 7. Training on Kaggle (GPU)
 
-Use this when you want a longer/bigger training run than the laptop default. **Only training moves
-to Kaggle**; everything else stays local.
+Use this only if you want to retrain on a GPU. **Only training moves to Kaggle**; everything else
+stays local.
 
-1. **Generate the synthetic set locally once** so you don't upload the big archive:
+1. **Generate the synthetic set locally once**, so you do not upload the archive:
    ```bash
    make synth        # writes outputs/cache/synth_train.npz and synth_val.npz
    ```
-2. **Zip the project** (code + config + the synthetic cache — not the raw archive):
+2. **Zip the code, config and synthetic cache** (not the raw archive):
    ```bash
    cd ..
    zip -r rambha_solution.zip solution/src solution/config.yaml \
        solution/outputs/cache/synth_train.npz solution/outputs/cache/synth_val.npz
    ```
-3. Go to **kaggle.com ▸ Create ▸ New Notebook**.
-4. In the right sidebar: **Notebook ▸ Session options ▸ Accelerator ▸ GPU T4 x1**. (Free, ~30 h/wk.)
-5. **Add Input ▸ Upload ▸ Dataset**, upload `rambha_solution.zip`. Kaggle mounts it under
+3. Go to **kaggle.com > Create > New Notebook**.
+4. In the right sidebar: **Notebook > Session options > Accelerator > GPU T4 x1**.
+5. **Add Input > Upload > Dataset**, upload `rambha_solution.zip`. Kaggle mounts it under
    `/kaggle/input/<your-dataset-name>/`.
-6. **File ▸ Import Notebook**, choose `notebooks/kaggle_train_pinn.ipynb` (or paste its cells).
-7. **Run all**. The notebook finds your uploaded folder, confirms the GPU, loads the synthetic
-   cache, trains 200 epochs, and writes `pinn.pt` to `/kaggle/working/`.
-8. Open the **Output** tab, **download `pinn.pt`** and `train_history.json`.
-9. Locally, put them in place and finish the pipeline:
+6. **File > Import Notebook**, choose `notebooks/kaggle_train_pinn.ipynb`.
+7. **Run all**. The notebook finds the upload, confirms the GPU, trains and writes `pinn.pt` to
+   `/kaggle/working/`.
+   *Note:* the notebook sets `epochs = 200`. The reported model used 250 (`config.yaml`); change
+   that line to 250 to reproduce it.
+8. From the **Output** tab, download `pinn.pt` and `train_history.json`.
+9. Put them in place locally and finish the pipeline:
    ```bash
    cp ~/Downloads/pinn.pt outputs/checkpoints/
    cp ~/Downloads/train_history.json outputs/tables/
    make apply && make validate && make figures
    ```
 
-> **Why upload only the synthetic cache?** Training never touches the raw archive — it learns from
-> the synthetic curves. Keeping the ~800 MB archive off Kaggle makes the upload trivial and the run
-> reproducible. The real archive is only needed locally in steps 1 and 5.
+> **Why upload only the synthetic cache?** Training never touches the real archive; it learns from
+> the simulated curves. The 1.6 GB archive is only needed locally, in steps 1 and 5.
 
 ---
 
-## 8. Training on Google Colab (GPU) — exact clicks
+## 8. Training on Google Colab (GPU)
 
-1. Upload the `solution/` folder to your Google Drive (e.g. `MyDrive/RAMBHA/solution`). Include
-   `outputs/cache/synth_*.npz` if you generated it (`make synth`); otherwise the notebook
-   regenerates it on the Colab box.
-2. Open **colab.research.google.com ▸ File ▸ Upload notebook**, pick
+1. Upload the `solution/` folder to Google Drive (e.g. `MyDrive/RAMBHA/solution`). Include
+   `outputs/cache/synth_*.npz` if you generated it; otherwise the notebook regenerates it.
+2. Open **colab.research.google.com > File > Upload notebook**, pick
    `notebooks/colab_train_pinn.ipynb`.
-3. **Runtime ▸ Change runtime type ▸ Hardware accelerator ▸ GPU ▸ Save.**
-4. Run the first cell to **mount Drive**; approve the popup.
-5. Edit the `SOL = ...` line to your Drive path, then **Runtime ▸ Run all**.
-6. The notebook saves `pinn.pt` straight back into the Drive `solution/outputs/checkpoints/`.
-7. Sync/download that file to your local `outputs/checkpoints/`, then locally run
+3. **Runtime > Change runtime type > Hardware accelerator > GPU > Save.**
+4. Run the first cell to **mount Drive** and approve the popup.
+5. Edit the `SOL = ...` line to your Drive path. As on Kaggle, change `epochs = 200` to 250 to
+   match the reported model. Then **Runtime > Run all**.
+6. The notebook saves `pinn.pt` into the Drive `solution/outputs/checkpoints/`.
+7. Copy that file to your local `outputs/checkpoints/` and run
    `make apply && make validate && make figures`.
 
-> **Colab vs Kaggle.** Colab is simplest if you already live in Drive; its sessions time out and
-> lose files not saved to Drive, which is why the notebook writes back to Drive. Kaggle keeps
-> uploaded datasets persistent and gives a fixed weekly GPU budget. Either is fine; the code is
-> identical — only the "where are my files" plumbing differs.
+> **Colab vs Kaggle.** Colab is simplest if you already use Drive; its sessions time out and lose
+> files not saved to Drive, which is why the notebook writes back there. Kaggle keeps uploaded
+> datasets and gives a fixed weekly GPU budget. The code is identical either way.
 
 ### 8.3 Wiring in a *real* MAVEN granule (optional, advanced)
-The MAVEN stage (see §9) is fully runnable today using a physics-faithful Mars-like distribution and
-a live reachability probe of the LASP archive. If you want to train on an actual MAVEN LPW L2
-Langmuir I–V granule, download one `.cdf` from the LASP MAVEN SDC public tree, read it with `cdflib`
-(`pip install cdflib`), extract the sweep voltage/current arrays, scale them with
-`physics.to_input_np`, and pass them as `Xpt` in `notebooks/maven_pretrain.ipynb`. The rest of the
-transfer code is unchanged. This is deliberately isolated so the core project never depends on an
-external download succeeding.
+The MAVEN stage (§9) runs on a Mars-like simulated distribution. To use an actual MAVEN LPW L2
+Langmuir sweep file instead, download one `.cdf` from the LASP MAVEN SDC public archive, read it
+with `cdflib` (`pip install cdflib`), extract the voltage and current arrays, scale them with
+`physics.to_input_np`, and pass them as `Xpt` in `notebooks/maven_pretrain.ipynb`. Given the
+result in §9, this is not recommended without a new reason to expect it to help.
 
 ---
 
-## 9. The MAVEN (Mars) transfer stage
+## 9. The MAVEN (Mars) transfer stage, and why it was abandoned
 
-**Idea.** A Langmuir sweep on Mars (MAVEN's LPW instrument) is the same *kind* of measurement as on
-the Moon, just in a denser, hotter plasma. Learning the general curve→parameter map on abundant
-Mars-like data first, then fine-tuning on the lunar synthetic set, is transfer learning — it can
-sharpen the lunar model.
+**Idea.** A Langmuir sweep at Mars (MAVEN's LPW instrument) is the same kind of measurement in a
+denser, hotter plasma. Pre-training on Mars-like sweeps, then fine-tuning on the lunar set, is
+transfer learning and was expected to sharpen the lunar model.
 
-**How this solution handles it.** `scripts/04_maven_pretrain.py` (and `notebooks/maven_pretrain.
-ipynb` for GPU) pretrains on Mars-range sweeps and fine-tunes on lunar ones, saving
-`maven_transfer.pt`. It first *probes* the LASP MAVEN archive for reachability, then trains on the
-physics-faithful MAVEN-like distribution; §8.3 shows how to swap in a literal granule. The mode used
-is recorded in `outputs/tables/maven_mode.json` so the report states exactly what was done.
+**What the code does.** `scripts/04_maven_pretrain.py` (and `notebooks/maven_pretrain.ipynb` for
+GPU) checks whether the LASP MAVEN archive is reachable, then pre-trains on a simulated Mars-like
+distribution (Ne 500 to 100,000 cm^-3, Te 0.1 to 5 eV), fine-tunes on the lunar set and saves
+`maven_transfer.pt`. The data mode used is recorded in `outputs/tables/maven_mode.json`.
 
-**The gate (from your own plan).** If MAVEN transfer does not clearly help — check whether
-`maven_transfer.pt` beats `pinn.pt` on the synthetic hold-out and the density trend — **freeze it as
-future work** by setting `maven.enabled: false` in `config.yaml` and shipping the lunar-only model.
-A complete lunar project beats a half-finished two-planet one. This is a legitimate, pre-planned
-outcome, not a failure.
+**Result.** It made the model about **15 times worse**. The likely reason: both datasets come from
+the same forward model, so pre-training adds no new physics, only a density prior two to three
+orders of magnitude away from the Moon's. Following the project's own gate ("a complete lunar
+project beats a half-finished two-planet one"), it was frozen as future work. The report states
+this as a negative result about this particular attempt, not a general claim about transfer
+learning. Keep using `--no-maven`.
 
 ---
 
-## 10. Tuning, troubleshooting, and common mistakes
+## 10. Tuning, troubleshooting and common mistakes
 
-**Everything is in `config.yaml`.** The knobs you'll actually touch:
-- `data.level` — `rawB` (photoemission removed, science-ready; the default and correct choice),
-  `rawA` (photoemission present), or `raw` (needs the gain-table conversion, handled automatically).
-- `data.max_files` — set to a small number to iterate fast; `null` for the whole archive.
-- `classical.min_r2` — the strictness of the classical success bar. Raising it flags more sweeps as
-  failures (more ML targets); lowering it credits classical with more. Report the value you used.
-- `synthetic.n_train`, `train.epochs`, `train.batch_size` — training budget. Bigger = better and
-  slower; the GPU notebooks already bump these up.
-- `model.w_physics` — weight of the physics-reconstruction loss. Higher = more physically
-  self-consistent, but too high starves the supervised term.
+**Everything is in `config.yaml`.** The settings you are most likely to touch:
+- `data.max_files`: set to a small number to iterate fast; `null` for the whole archive.
+- `classical.min_r2`: how strict the classical pass bar is. It moves the failure count a lot, so
+  always state it with the failure rate: 0.80 -> 71.2% of sweeps pass, 0.85 -> 69.6%,
+  **0.90 -> 55.6% (used)**, 0.95 -> 38.7%.
+- `synthetic.n_train`, `train.epochs`, `train.batch_size`: training budget. Bigger is slower and
+  usually better.
+- `model.w_physics`: weight of the physics term (0.5). See step 8 before changing it.
+- `probe.sheath_exponent`: 0.40, fitted to real sweeps. Changing it changes every classical and
+  network result.
 
-**Common mistakes (learn from these):**
+**Common mistakes:**
 1. **Wrong `archive_root`.** Symptom: "No sweeps parsed." Fix the one path in `config.yaml`.
-2. **Running the full pipeline before the smoke test.** Always `--quick` first.
-3. **Uploading the raw archive to Kaggle/Colab.** Unnecessary — training only needs the synthetic
-   cache. Upload that, not 800 MB of CSVs.
-4. **Quoting a recovery number the reconstruction doesn't support.** Only report what
-   `recovery_summary.json` says; pair every recovered value with its uncertainty column.
-5. **Forgetting the sign convention.** Real sweeps arrive in either current polarity; the code
-   auto-orients them. If you add a new data source, keep that orientation step.
-6. **Changing code instead of config.** If you find yourself editing a number in a `.py` file, it
-   probably belongs in `config.yaml`. Keep the code fixed and the config the record of your choices.
-7. **Comparing `pinn.pt` and `maven_transfer.pt` by eye.** Use the synthetic hold-out error and the
-   density-trend and ramp-consistency numbers in `validation.json` — numbers, not impressions.
-8. **Treating the synthetic hold-out error as the real accuracy.** It's the best case (physics vs
-   physics). Real recoveries are looser; say so.
+2. **Skipping the smoke test.** Always run `--quick` first.
+3. **Forgetting `--no-maven`.** Without it, step 5 uses the abandoned Mars model.
+4. **Uploading the raw archive to Kaggle or Colab.** Training needs only the synthetic cache.
+5. **Quoting a number the files do not support.** Only report what the JSON and CSV files say, and
+   pair every recovered value with its error bar.
+6. **Forgetting the sign convention.** Real sweeps arrive in either current polarity; the code
+   flips them so electron current rises with voltage. Keep that step if you add a new data source.
+7. **Changing code instead of config.** If you are editing a number in a `.py` file, it probably
+   belongs in `config.yaml`.
+8. **Treating the simulated-sweep error as the real accuracy.** It is the best case. Real accuracy
+   is looser; say so.
+9. **Running experiment scripts before the main run.** Steps 8 to 16 read the outputs of steps 1
+   to 7, so run `run_all.py --no-maven` first.
 
 ---
 
 ## 11. Assembling the submission
 
-A complete submission is: the code, the results it produces, and the report that explains them.
-
-1. **Freeze a clean run.** `make clean && python scripts/run_all.py`. This regenerates `outputs/`
-   from scratch so the tables and figures are mutually consistent.
-2. **Collect the deliverables:**
-   - the `solution/` folder (code + `config.yaml` + this GUIDE + README),
-   - `outputs/figures/F1..F6.png`,
-   - `outputs/tables/recovery_summary.json` and `validation.json` (your results section),
-   - your written report (`IS_Project_Report_RAMBHA-LP.docx/.pdf` in the parent folder) updated with
-     the figures and the numbers from the JSONs.
-3. **Sanity-check the story:** classical fails on X% (F2) → the network recovers N of them (F5) →
-   validated four ways: synthetic hold-out, agreement with classical where it works, the mission
-   density trend (F6), and up/down ramp consistency (`validation.json`) → stated with uncertainty.
-   Quote `classical.min_r2` alongside the failure rate: it moves the denominator a lot (0.80 →
-   42% classical success, 0.90 → 29%, 0.95 → 15%), so the threshold must be stated, not buried.
-4. **Commit it** so there's a timestamped record:
-   ```bash
-   cd ..
-   git add solution && git commit -m "Complete RAMBHA-LP solution: run_all pipeline + guide"
-   ```
-5. If the department wants a single archive, zip `solution/` plus the figures and the report.
-
-You can submit the **laptop-only** run as-is. The GPU path only makes the training longer/bigger for
-a stronger final model; it does not change what you submit or how you defend it.
+1. **Freeze a clean run only if you have changed something**:
+   `make clean && python scripts/run_all.py --no-maven`, so the tables and figures agree.
+   Careful: `make clean` deletes `outputs/`, including the `pinn.pt` behind the report, and a
+   retrained network will not reproduce every number exactly. Copy `outputs/` somewhere first. If
+   nothing has changed, keep the existing outputs.
+2. **Deliverables:**
+   - the report and supplementary material in `../report/`
+     (`RAMBHA-LP_Independent_Study_Report_SunilKumar.pdf/.docx`,
+     `RAMBHA-LP_Supplementary_Material_SunilKumar.pdf/.docx`);
+   - the `solution/` code with `config.yaml`, this GUIDE and the README;
+   - `outputs/tables/`, `outputs/figures/` and `outputs/checkpoints/pinn.pt`;
+   - a link to the raw data (`ch3_rambha.zip`, 1.6 GB), which is too large to attach.
+   The packaged version of all this is `../submission/RAMBHA-LP_Submission_SunilKumar.zip`.
+3. **Check the story holds:** the classical fit fails on 44% (F2) -> the network recovers 63% of
+   those (F5) -> checked four ways: simulated test sweeps, agreement with the classical fit,
+   the mission density trend (F6) and up/down consistency (`validation.json`) -> stated with error
+   bars, and with `classical.min_r2 = 0.90` given alongside the failure rate.
+4. **Commit** so there is a timestamped record.
 
 ---
 
-## 12. A realistic 2-week schedule
+## 12. The experiment scripts (steps 8 to 16)
 
-This is the safety-net timeline — it gets you to a submittable state without waiting on the live
-YouTube learning track.
+Each script answers one question in the report. All of them need a completed main run (§3).
 
-- **Day 1.** Install (§2), run `--quick`, then a full laptop run. Read the numbers in
-  `recovery_summary.json` and `validation.json`. You now have a complete draft result.
-- **Days 2–3.** Read §4 and §6 until you can explain each step and each design choice in your own
-  words. Open `classical_baseline.csv` and `ml_predictions.csv` and look at real rows.
-- **Days 4–5.** Do one GPU training run (Kaggle §7 or Colab §8) with the bumped-up epochs; swap in
-  the better checkpoint. Compare `pinn.pt` vs the GPU model on the hold-out.
-- **Days 6–7.** Run the MAVEN stage (§9). Decide FINALIZE or FREEZE from the numbers; set
-  `maven.enabled` accordingly.
-- **Days 8–10.** Fold F1–F6 and the JSON numbers into the report. Write the honesty/uncertainty
-  paragraph. Tune `classical.min_r2` if you want the failure/recovery framing to be cleaner, and
-  re-run.
-- **Days 11–12.** Mock-defend using §6 as your question bank. For each design choice, say the
-  "I chose X over Y because…; the cost is…" sentence aloud.
-- **Days 13–14.** Freeze a clean run (§11), assemble the submission, commit, and stop.
+| Script | Question | Writes | Report |
+|---|---|---|---|
+| `08_ablate_physics.py` | Does the physics loss term help? Retrains at weights 0, 0.1, 0.25, 0.5 | `tables/physics_ablation.json` | §3.3.1, Table 8 |
+| `09_photoelectron_test.py` | Is the second population photoelectrons? **Superseded** | `outputs_2pop/` | none |
+| `10_model_comparison.py` | Second population or baseline artefact? **Superseded** | `outputs_2pop/` | none |
+| `11_local_te_diagnostic.py` | Local-Te profile against a matched single-temperature control | `outputs_2pop/tables/local_te_diagnostic.json` | §3.3.2 |
+| `12_slope_curvature.py` | Does the slope change within a single sweep? | `outputs_2pop/tables/slope_curvature.json` | §3.3.2 |
+| `13_vp_decoupling.py` | Does aligning on Vp halve the Te error on simulated data? | prints a table | Table 10 |
+| `14_te_refine_eval.py` | Does that gain survive on real sweeps? (no) | `tables/te_refine_eval.json` | Table 11 |
+| `15_uncertainty_calibration.py` | Are the MC-dropout error bars honest? | `tables/uncertainty_calibration.json` | §3.1.3 |
+| `16_fisher_bound.py` | Best Te accuracy the noise allows (Cramér-Rao bound) | `tables/fisher_bound.json` | §3.3.3 |
 
-That is the whole project, start to finish. The code is the safety net; your live-taught
-understanding is the goal. Both are here.
+Exact commands for the report's numbers:
+
+```bash
+python scripts/13_vp_decoupling.py --n-synth 20000 --epochs 90   # Table 10 (slow: 3 seeds)
+python scripts/14_te_refine_eval.py                              # Table 11 (default window)
+python scripts/15_uncertainty_calibration.py
+python scripts/16_fisher_bound.py
+```
+
+Scripts 09 and 10 assumed a second electron population exists. Scripts 11 and 12 then showed that
+the evidence for one came from averaging sweeps of different temperatures, so 09 and 10 are kept
+only as a record. The supplementary material (Appendix A) lists what was withdrawn, and
+`CODE_REVIEW.md` holds the full engineering log.
