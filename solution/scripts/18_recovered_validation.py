@@ -4,7 +4,7 @@ Step 18 — How good are the sweeps the network recovers?
 
 WHY THIS SCRIPT EXISTS
 ----------------------
-Every real-data check in steps 6 and 15 uses sweeps the classical fit already handles. The 8,343
+Every real-data check in steps 6 and 15 uses sweeps the classical fit already handles. The
 sweeps the network recovers from classical failures are accepted on one condition that does the
 work: the curve rebuilt from the network's parameters matches the sweep with R^2 >= 0.90. That R^2
 is taken on the linear current over the whole sweep, where the large saturation branch dominates,

@@ -12,7 +12,7 @@ There are two ways to run the project, and you can mix them:
 
 > **Mental model.** Steps 1 to 7 are the main pipeline: steps 1 and 2 prepare data, step 3 trains
 > the network, steps 5 to 7 apply it and produce the results. Step 4 (Mars pre-training) was tried
-> and abandoned. Steps 8 to 16 are the experiments behind individual results in the report (§12).
+> and abandoned. Steps 8 to 18 are the experiments behind individual results in the report (§12).
 > Every step writes to `outputs/` and the next step reads from there, so you can stop, inspect and
 > resume anywhere.
 
@@ -31,7 +31,7 @@ There are two ways to run the project, and you can mix them:
 9. The MAVEN (Mars) transfer stage, and why it was abandoned
 10. Tuning, troubleshooting and common mistakes
 11. Assembling the submission
-12. The experiment scripts (steps 8 to 16)
+12. The experiment scripts (steps 8 to 18)
 
 ---
 
@@ -46,8 +46,9 @@ The classical way to get them (fit a straight line to ln(I) below the plasma pot
 the saturation branch) works on clean sweeps and **fails** on noisy, faint or oddly shaped ones. On
 this archive it fails on 13,266 of 29,862 sweeps (44%). This project trains a neural network on
 simulated sweeps, with a loss that also checks the physics, to read the *whole* curve into
-(Ne, Te, Vp). It recovers 8,343 of those failures (63%), raising the usable part of the archive
-from 56% to 84%, with error bars, because there is no ground truth for lunar plasma.
+(Ne, Te, Vp). It recovers 5,410 of those failures (41%; 91% of the ones the instrument did not
+clip), raising the usable part of the archive from 56% to 74%, with error bars, because there is no
+ground truth for lunar plasma.
 
 The thesis in one line: **the classical fit discards many sweeps; a physics-informed network
 recovers most of them, and agrees with the classical fit where both work.**
@@ -173,18 +174,20 @@ Applies `pinn.pt` to every real sweep with 50 Monte-Carlo dropout passes (mean =
 error bar), rebuilds each sweep through the OML model, and marks a sweep **recovered** if Ne is
 1 to 100,000 cm^-3, Te is 0.03 to 5 eV, the rebuilt curve has R^2 of at least 0.90, and the density
 error bar is below 0.5 dex. Writes `outputs/tables/ml_predictions.csv` and `recovery_summary.json`.
-*Check:* `recovery_summary.json` holds the headline: **8,343 of 13,266 failures recovered
-(62.9%); combined usable sweeps 24,939 (83.5%)**.
+*Check:* `recovery_summary.json` holds the headline: **5,410 of 13,266 failures recovered
+(40.8%); combined usable sweeps 22,006 (73.7%)**. A sweep the instrument clipped (8,449 of them,
+28%) is never counted as recovered; see `config.yaml`, `recovery`.
 
 **Step 6: `06_validate_hop.py` (validate).**
 Four checks, since there is no ground truth:
 (a) error on the 4,000 simulated test sweeps, where the truth is known;
-(b) agreement with the classical fit on the 16,596 sweeps it handles (density within about 1%);
-(c) the **density trend** across the mission: the network is never told the date, so a smooth,
-rising day-to-day median (Spearman 0.78 over 10 well-sampled days) is evidence it learned physics
-rather than an artefact;
+(b) agreement with the classical fit on the 16,596 sweeps it handles (no systematic density
+offset; individual sweeps differ by 4.7% in density and 27% in temperature);
+(c) the **density trend** across the mission: the network is never told the date, yet its daily
+medians rise smoothly (Spearman 0.78, p = 0.008, over 10 well-sampled days). The classical fit
+shows the same rise, so this is a consistency check, not proof against an instrumental effect;
 (d) **ramp consistency**: the up and down halves of each sweep measure the same plasma seconds
-apart, so their disagreement (2.6% in density over 12,418 pairs) is an error estimate taken from
+apart, so their disagreement (2.4% in density over 10,365 pairs) is an error estimate taken from
 the data, not from the model. Writes `outputs/tables/validation.json`.
 
 > The single-day "hop" test this replaced could not be answered from this archive: the hop on
@@ -384,7 +387,7 @@ learning. Keep using `--no-maven`.
    belongs in `config.yaml`.
 8. **Treating the simulated-sweep error as the real accuracy.** It is the best case. Real accuracy
    is looser; say so.
-9. **Running experiment scripts before the main run.** Steps 8 to 16 read the outputs of steps 1
+9. **Running experiment scripts before the main run.** Steps 8 to 18 read the outputs of steps 1
    to 7, so run `run_all.py --no-maven` first.
 
 ---
@@ -412,7 +415,7 @@ learning. Keep using `--no-maven`.
 
 ---
 
-## 12. The experiment scripts (steps 8 to 16)
+## 12. The experiment scripts (steps 8 to 18)
 
 Each script answers one question in the report. All of them need a completed main run (§3).
 
@@ -427,6 +430,8 @@ Each script answers one question in the report. All of them need a completed mai
 | `14_te_refine_eval.py` | Does that gain survive on real sweeps? (no) | `tables/te_refine_eval.json` | Table 11 |
 | `15_uncertainty_calibration.py` | Are the MC-dropout error bars honest? | `tables/uncertainty_calibration.json` | §3.1.3 |
 | `16_fisher_bound.py` | Best Te accuracy the noise allows (Cramér-Rao bound) | `tables/fisher_bound.json` | §3.3.3 |
+| `17_sheath_exponent.py` | Does the data alone choose the sheath exponent 0.40? Is the 1.0 V fit window a fair choice? | `tables/sheath_exponent.json` | §1.1, §2.3 |
+| `18_recovered_validation.py` | Are the recovered sweeps reliable? Twin halves, the classical test, clipping; draws F7 | `tables/recovered_validation.json`, `figures/F7_recovered_example.png` | §3.2.3, Figure 5 |
 
 Exact commands for the report's numbers:
 
@@ -435,6 +440,8 @@ python scripts/13_vp_decoupling.py --n-synth 20000 --epochs 90   # Table 10 (slo
 python scripts/14_te_refine_eval.py                              # Table 11 (default window)
 python scripts/15_uncertainty_calibration.py
 python scripts/16_fisher_bound.py
+python scripts/17_sheath_exponent.py                             # §2.3 (about 3 minutes)
+python scripts/18_recovered_validation.py                        # §3.2.3, Figure 5
 ```
 
 Scripts 09 and 10 assumed a second electron population exists. Scripts 11 and 12 then showed that

@@ -27,27 +27,38 @@ It is validated three ways, none of which requires ground truth (there is none f
 |---|---|---|
 | classical fit succeeds | 16,596 | 55.6% |
 | classical fails | 13,266 | 44.4% |
-| …recovered by the network | 8,343 | 62.9% of failures |
-| **combined usable** | **24,939** | **83.5%** |
+| …clipped by the instrument (not recoverable) | 7,330 | 55.3% of failures |
+| …recovered by the network | 5,410 | 40.8% of failures (91% of unclipped ones) |
+| **combined usable** | **22,006** | **73.7%** |
+
+**Clipping.** 28% of all sweeps are clipped by the instrument's front end (it saturates at about
+78 mV on the 1 MΩ and 20 MΩ settings). The network's values on clipped sweeps are artefacts
+(density 68% high and Te 0.43 eV low against the classical twin half), so clipped sweeps are never
+counted as recovered. `scripts/18_recovered_validation.py` has the evidence.
 
 **Accuracy** on 4,000 held-out synthetic sweeps: density 0.021 dex (~5%), temperature 0.078 eV
 (~20% at the archive's typical 0.4 eV), plasma potential 0.141 V.
 
 **Validation without ground truth.**
 
-- *Independent method.* On the 16,596 sweeps both methods fit, density agrees to 0.0048 dex
-  (~1.1%) — between a neural network trained only on simulation and a hand-written curve fit
-  that shares no code with it.
+- *Independent method.* On the 16,596 sweeps both methods fit there is no systematic density
+  offset (1.0%) and individual sweeps differ by 4.7%. Temperature differs by 0.097 eV (27%) per
+  sweep, with little offset.
+- *Recovered sweeps.* For 2,410 recovered sweeps the other half of the same commanded sweep passes
+  the classical fit; against it the recovered density differs by 5.2%, the same level as where both
+  methods work (4.8%).
 - *Instrument against itself.* Every commanded sweep is a triangle, so its two halves are
-  independent measurements seconds apart: 12,418 pairs agree to 0.011 dex (2.6%), r = 0.995,
+  independent measurements seconds apart: 10,365 pairs agree to 0.010 dex (2.4%), r = 0.993,
   with no directional bias.
-- *Blind test.* The network never sees the date. Its recovered densities nonetheless reconstruct
-  the mission-long trend, rising 246 → 493 cm⁻³ over eleven days (Spearman 0.78).
+- *Mission timeline.* The network never sees the date, yet its daily medians rise from 246 to
+  500 cm⁻³ (Spearman 0.78, p = 0.008). The classical fit shows the same rise, so this is a
+  consistency check rather than an independent test.
 
 **Against the published analysis** (Manju et al. 2025, MNRAS 542, 2647): median temperature and
 plasma potential, and daily median density from 27 August onwards, fall inside the published
-ranges (density on the first three days is lower); for 2 September the pipeline returns 456 cm⁻³ against a
-published 478, and a plasma potential of −3.7 V (classical fit −3.9 V) against −3.9 V.
+ranges (density on the first three days is lower); for 2 September, 19–20 h, the network gives a mean of 431 cm⁻³ and the classical fit
+432 cm⁻³, inside the published 409–680 cm⁻³ (mean 478, Manju et al. 2026), and a plasma potential of
+−3.8 V (classical fit −3.9 V) against −3.9 V.
 
 ## What is novel here
 
@@ -118,6 +129,8 @@ solution/scripts/
   14      does the temperature refinement survive real sweeps?
   15      are the MC-dropout error bars honest? (synthetic truth + real up/down pairs)
   16      what is the Fisher-information bound on Te, and how much does Vp inflate it?
+  17      does the data alone choose the sheath exponent 0.40? fit-window sensitivity
+  18      are the recovered sweeps reliable? twin halves, classical test, clipping
 ```
 
 Every diagnostic a conclusion depends on is a numbered script and re-runs with one command.

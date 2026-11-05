@@ -152,7 +152,7 @@ def fig_density_trend(ml_df: pd.DataFrame, cfg):
     fig, ax = plt.subplots(figsize=(8.6, 4.4))
     ax.bar(xs[~thin], g["median"][~thin], color=C_TEAL, label=f"n >= {min_n} sweeps")
     ax.bar(xs[thin], g["median"][thin], facecolor="none", edgecolor=C_GREY, hatch="///",
-           linewidth=1.2, label=f"n < {min_n} — too thin to trust")
+           linewidth=1.2, label=f"n < {min_n}: too thin to trust")
 
     for x, (mval, cval) in enumerate(zip(g["median"], g["count"])):
         ax.annotate(f"n={cval}", (x, mval), textcoords="offset points", xytext=(0, 3),

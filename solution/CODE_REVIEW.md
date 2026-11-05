@@ -3076,3 +3076,31 @@ Every one of those was caught by a control or a cheap test, and every one produc
 finding than the hypothesis would have. The pattern worth keeping is not the hypotheses — it is
 that each was made falsifiable and then actually falsified, at low cost, before anything was
 adopted or written into the report.
+
+---
+
+# Phase 18 — Final review: clipped sweeps, and the recovered sweeps checked directly (5 Nov 2026)
+
+A referee-style review of the report found that every real-data check used sweeps the classical
+fit already handles; the 8,343 recovered sweeps were admitted only by the rebuilt-curve R^2, which
+is taken on the linear current over the whole sweep and accepts 99.9% of classical passes.
+
+**Script 18 checked them directly** and found the instrument **clips 28% of all sweeps** (8,449):
+the front end saturates at about 78 mV across the resistor (78 nA on 1 Mohm, 3.9 nA on 20 Mohm;
+never on 49.9 kohm). The forward model has no saturation, but its numerical cap x <= 60 is reached
+inside the sweep at low Te, and the network used that to imitate the flat top. Against the
+classical value on the unclipped twin half, clipped "recoveries" were 68% high in density and
+0.43 eV low in Te; unclipped ones agree to 5.2% and 0.096 eV, the same as where both methods work.
+
+**Change:** `infer.clipped_mask` flags clipped curves and they are never counted as recovered
+(`config.yaml`, `recovery`). Headline: **5,410 recovered (40.8% of failures; 91% of unclipped
+failures), 22,006 usable (73.7%)**, down from 8,343 and 83.5%. Steps 5, 6, 15 and 18 were re-run
+with a fixed MC-dropout seed; no retraining. Table 8 (ablation) still uses the old recovery
+definition and says so.
+
+**Also from the review:** script 17 re-derives the sheath exponent from the data alone (0.40
+overall; 0.50 on 20 Mohm), removing the circularity of having chosen it partly to match the
+published 2 Sep values. Per-sweep agreement with the classical fit is now reported (4.7% density,
+27% Te) alongside the offsets; the 2 Sep comparison is mean to mean for 19-20 h (431 vs 478,
+range 409-680); the "blind test" is described as a consistency check because the classical fit
+shows the same trend; the error bars are stated to be calibrated on simulation only.
