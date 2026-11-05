@@ -47,6 +47,8 @@ def main():
     model = train.load_checkpoint(cfg, out(cfg, "checkpoints", "pinn.pt"))
     mc = cfg["validate"]["mc_samples"]
 
+    import torch
+    torch.manual_seed(cfg["train"]["seed"])       # reproducible dropout draws
     val = np.load(B.cache_dir(cfg) / "synth_val.npz")
     X, Y = val["X"], val["Y"]                       # Y = [log10 Ne, Te, Vp]
     p = predict(model, X, cfg, mc_samples=mc)

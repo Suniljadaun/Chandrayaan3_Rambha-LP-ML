@@ -2,6 +2,8 @@
 """
 Step 5 — Apply the trained model to the REAL sweeps and count recoveries.
 
+A sweep the instrument clipped is never counted as recovered (config.yaml, recovery).
+
 Prefers the MAVEN-transfer checkpoint if it exists, else the plain PINN.
 
 Outputs:
@@ -36,6 +38,9 @@ def main():
     sweeps = B.load_pickle(B.cache_dir(cfg) / "sweeps.pkl")
     classical_df = pd.read_csv(out(cfg, "tables", "classical_baseline.csv"))
 
+    # Fixed seed so the Monte-Carlo dropout draws, and every error bar, are reproducible.
+    import torch
+    torch.manual_seed(cfg["train"]["seed"])
     ml_rows = infer.apply(model, sweeps, cfg)
     ml_df = pd.DataFrame(ml_rows)
     ml_df.to_csv(out(cfg, "tables", "ml_predictions.csv"), index=False)
@@ -58,6 +63,12 @@ def main():
             n_recovered / max(1, n_total - n_classical_ok),
         "combined_yield": n_classical_ok + n_recovered,
         "combined_yield_fraction": (n_classical_ok + n_recovered) / max(1, n_total),
+        # Clipped sweeps (config.yaml, recovery) are never counted as recovered.
+        "n_clipped_total": int(ml_df["clipped"].sum()),
+        "n_classical_failed_clipped": int(sum(1 for r in ml_rows
+                                          if (r["timestamp"], r["idx"]) in fail_keys and r["clipped"])),
+        "n_classical_ok_clipped": int(sum(1 for r in ml_rows
+                                      if (r["timestamp"], r["idx"]) not in fail_keys and r["clipped"])),
         "checkpoint": ckpt.name,
     }
     with open(out(cfg, "tables", "recovery_summary.json"), "w") as f:

@@ -11,7 +11,8 @@ Two jobs:
      OML forward model, score the reconstruction, and decide which sweeps are RECOVERED.
 
 'Recovered' is defined conservatively (config-driven): plausible Ne and Te, a good physics
-reconstruction, and bounded uncertainty. A sweep the classical method failed on, that the
+reconstruction, bounded uncertainty, and a curve the instrument did not clip (config.yaml,
+recovery). A sweep the classical method failed on, that the
 network fits self-consistently with tight error bars, is a genuine recovery — and we only ever
 report the number the reconstruction score actually supports.
 """
@@ -48,6 +49,24 @@ def prepare_input(sweeps, cfg):
     return X, elec
 
 
+def clipped_mask(electron_curves, cfg):
+    """True for curves the instrument clipped: a flat top reached well below the end of the sweep.
+
+    See config.yaml, recovery. The network cannot read a clipped curve correctly (it imitates the
+    flat top with a very low Te), so a clipped sweep is never counted as recovered.
+    """
+    rcfg = cfg.get("recovery", {})
+    k = int(rcfg.get("clip_top_points", 40))
+    tol = float(rcfg.get("clip_flat_tolerance", 0.002))
+    reach = float(rcfg.get("clip_reach_V", 8.0))
+    grid = common_grid(cfg)
+    E = np.asarray(electron_curves, dtype=float)
+    peak = np.maximum(E.max(axis=1), 1e-30)
+    flat = np.ptp(E[:, -k:], axis=1) < tol * peak
+    first_at_peak = grid[np.argmax(E >= 0.998 * peak[:, None], axis=1)]
+    return flat & (first_at_peak < reach)
+
+
 def _recon_r2(curve_amps, Ne, Te, Vp, cfg, Nh=None, Th=None):
     """R^2 of the electron reconstruction against an observed (baseline-subtracted) curve.
 
@@ -80,6 +99,8 @@ def apply(model, sweeps, cfg, mc_samples=None):
     lo_ne, hi_ne = ccfg["ne_plausible_cc"]
 
     two_pop = "Nh_cc" in pred
+    clipped = clipped_mask(elec, cfg)
+    exclude_clipped = bool(cfg.get("recovery", {}).get("exclude_clipped", True))
     rows = []
     for i, sw in enumerate(sweeps):
         Ne, Te, Vp = pred["Ne_cc"][i], pred["Te_eV"][i], pred["Vp_V"][i]
@@ -89,6 +110,7 @@ def apply(model, sweeps, cfg, mc_samples=None):
         recovered = bool(
             (lo_ne <= Ne <= hi_ne) and (lo_te <= Te <= hi_te)
             and (r2 >= ccfg["min_r2"]) and (pred["Ne_dex_std"][i] < 0.5)
+            and not (exclude_clipped and clipped[i])
         )
         rows.append(dict(
             date=sw.date, timestamp=sw.timestamp, idx=sw.idx, t_start=sw.t_start,
@@ -97,7 +119,7 @@ def apply(model, sweeps, cfg, mc_samples=None):
             Ne_dex_std=float(pred["Ne_dex_std"][i]),
             Te_eV_std=float(pred["Te_eV_std"][i]),
             Vp_V_std=float(pred["Vp_V_std"][i]),
-            recon_r2=float(r2), recovered=recovered,
+            recon_r2=float(r2), clipped=bool(clipped[i]), recovered=recovered,
             **({"Nh_cc": float(Nh), "Th_eV": float(Th),
                 "Nh_cc_std": float(pred["Nh_cc_std"][i]),
                 "Th_eV_std": float(pred["Th_eV_std"][i])} if two_pop else {}),

@@ -80,8 +80,11 @@ def forward_iv_np(V, Ne_cc, Te_eV, Vp_V, cfg):
     # range (Te down to 0.05 eV) combined with wide Vp -- this is not a rare edge case,
     # it occurs in essentially every training batch. That blows a plain, unnormalised MLP's
     # activations to inf/nan within the first few batches (the observed epoch-0 NaN).
-    # Capping at 60 keeps both branches on a comparable numerically-safe scale and does not
-    # touch the physics anywhere real lunar sweeps live (|x| is well under 60 there).
+    # Capping at 60 keeps both branches on a comparable numerically-safe scale. It is NOT
+    # harmless everywhere: at low Te the cap is reached inside the sweep (x = 60 at
+    # V = Vp + 60*Te, i.e. Vp + 6 V at Te = 0.1 eV), and the curve then goes flat. On sweeps the
+    # instrument clipped, the network uses exactly that to imitate the clipped top with a very low
+    # Te, which is why clipped sweeps are excluded from recovery (config.yaml, recovery).
     alpha = float(cfg["probe"].get("sheath_exponent", 1.0))
     retard = np.exp(np.clip(x, -60, 0))
     sat = (1.0 + np.clip(x, 0, 60)) ** alpha

@@ -39,17 +39,20 @@ probe:
   #     alpha = 0.5 -> median R^2 0.992
   #     alpha = 1.0 -> median R^2 0.972   (the old hard-coded value)
   #     alpha = 0.0 -> median R^2 0.946
-  # (The four R^2 values above were measured during development; no script for them was
-  # saved.) 0.40, the fitted value, is used rather than the rounder 0.5. With it, the classical
+  # (The four R^2 values above were measured during development on 100 sweeps; script 17
+  # reproduces the ranking on the whole archive.) 0.40 is used rather than the rounder 0.5. It
+  # was first chosen partly because it matched the published 2 Sep values, so script 17 now
+  # supplies the data-only justification. With it, the classical
   # fit on 2 Sep 2023 gives medians of Ne 464 cm^-3, Te 4,700 K and Vp -3.92 V over 1,789
   # passing sweeps, against -3.9 V for that day in Manju et al. (2026) and 380-600 cm^-3 and
   # 3,000-8,000 K in Manju et al. (2025).
   #
-  # The exponent is NOT an instrumental artefact. The obvious candidate -- an I*R drop across
-  # the probe resistor bending the saturation branch -- is ruled out by measurement: the
-  # fitted exponent is 0.30 / 0.40 / 0.30 at the 49.9 kohm / 1 Mohm / 20 Mohm settings, with
-  # overlapping interquartile ranges, while the implied I*R drops are 0.00 / 0.07 / 0.06 V.
-  # Three measurement chains carrying currents that differ by a factor of 26 agree on it.
+  # Re-derived from the data alone by scripts/17_sheath_exponent.py (no published values):
+  # over the 4,949 sweeps the classical fit passes at every exponent tried, the saturation
+  # branch is described best at 0.40 (median R^2 0.981, against 0.958 at 0.5 and 0.884 at
+  # 1.0). By resistor setting the best value is 0.40 at 49.9 kohm and 1 Mohm and 0.50 at
+  # 20 Mohm, so a dependence on the measurement chain cannot be ruled out. (An earlier comment
+  # here gave 0.30 / 0.40 / 0.30 per setting; script 17 does not reproduce that.)
   sheath_exponent: 0.40
 
   # Width of the retardation -> saturation changeover at Vp, as a MULTIPLE OF Te.
@@ -250,6 +253,20 @@ maven:
   # MAVEN-like distribution used to pretrain, then fine-tune on lunar synthetic.
   ne_cc: [500.0, 100000.0]
   te_eV: [0.1, 5.0]
+
+recovery:
+  # A sweep the instrument clipped cannot count as recovered. On the 1 Mohm and 20 Mohm
+  # settings the front end saturates at about 78 mV across the resistor (78 nA and 3.9 nA), and
+  # the top of the curve goes flat; no clipping occurs at 49.9 kohm. 28% of all sweeps are
+  # clipped. The network imitates a flat top by choosing a very low Te, so on clipped sweeps its
+  # values are artefacts: against the classical value on the unclipped twin half, density comes
+  # out 68% high and Te 0.43 eV low (scripts/18_recovered_validation.py). A curve counts as
+  # clipped when its last clip_top_points grid points vary by less than clip_flat_tolerance of
+  # its peak and it first reaches 99.8% of that peak below clip_reach_V.
+  exclude_clipped: true
+  clip_top_points: 40            # the top 40 of 240 grid points, about +8 to +12 V
+  clip_flat_tolerance: 0.002
+  clip_reach_V: 8.0
 
 validate:
   # Pre-hop (baseline) and terminator dates for the blind physics test. NOTE: this was
