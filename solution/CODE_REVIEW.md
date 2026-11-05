@@ -3104,3 +3104,10 @@ published 2 Sep values. Per-sweep agreement with the classical fit is now report
 27% Te) alongside the offsets; the 2 Sep comparison is mean to mean for 19-20 h (431 vs 478,
 range 409-680); the "blind test" is described as a consistency check because the classical fit
 shows the same trend; the error bars are stated to be calibrated on simulation only.
+
+**Ablation re-run with clipping excluded (5 Nov 2026, `08_ablate_physics.py --repeats 3`).** The
+physics term no longer changes recovery measurably (41.6% at w = 0.5 against 41.0% at w = 0,
+seed sd 40-120 sweeps). The ten-point recovery gain reported in Phase 12 came from clipped sweeps
+and is withdrawn. The term still earns its keep on real data: without it the up/down density
+disagreement is 41% larger (0.0144 vs 0.0102 dex, seed sd <= 0.0009) and a +0.024 dex (6%) offset
+against the classical fit appears (+0.001 dex with it). Synthetic Te: 0.075 vs 0.056 eV.

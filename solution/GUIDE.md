@@ -258,9 +258,10 @@ local structure, but the gain here does not justify the added complexity.
 
 **Physics-informed loss (supervised + rebuild).** Pure supervised learning can predict physically
 inconsistent parameters on real curves unlike the training set. The rebuild term forces
-self-consistency. Step 8 measured the trade: it costs some accuracy on simulated sweeps (Te 0.055
--> 0.078 eV) but buys 10 percentage points of real recovery and a third less disagreement between
-sweep halves, so it stays.
+self-consistency. Step 8 measured the trade over three runs per weight: it costs some accuracy on
+simulated sweeps (Te 0.056 -> 0.075 eV) but cuts the disagreement between sweep halves by 29% and
+removes a 6% density offset against the classical fit, so it stays. It does not change how many
+sweeps are recovered.
 
 **Recovery defined conservatively.** A sweep counts as recovered only if the parameters are
 plausible, the rebuilt curve clears the same R^2 of 0.90 as the classical fit, and the density

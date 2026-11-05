@@ -78,8 +78,9 @@ analysis. Getting there produced two findings of wider use:
   apparent signal.
 - *A synthetic hold-out cannot adjudicate a sim-to-real question.* Demonstrated twice, in
   opposite directions. The physics-loss term looks actively harmful on synthetic data (removing
-  it improves temperature error 0.078 → 0.055 eV) while buying ten percentage points of real
-  archive recovery. Conversely, a temperature transformation that nearly halves synthetic error
+  it improves temperature error 0.075 → 0.056 eV over three runs) while on real sweeps it cuts
+  the disagreement between sweep halves by 29% and removes a 6% density offset against the
+  classical fit. Conversely, a temperature transformation that nearly halves synthetic error
   (22.3% → 12.2%, about 13σ over three seeds) degrades real repeatability by 32% and was rejected.
 
 **A quantified account of why temperature is the hard parameter.** A Fisher-information analysis

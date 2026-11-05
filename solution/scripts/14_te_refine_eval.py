@@ -10,8 +10,9 @@ nearly halves the temperature error: 22.3% +- 1.3% -> 12.2% +- 0.2%, about 13 si
 
 That is a synthetic result, and this project has already been burned by exactly that distinction.
 The physics-loss ablation (scripts/08) found a term that looks actively harmful on synthetic
-hold-out — removing it improved synthetic Te from 0.078 to 0.055 eV — while buying ten percentage
-points of real-archive recovery and a third of the ramp-pair systematic. Judged on synthetic
+hold-out — removing it improved synthetic Te from 0.075 to 0.056 eV — while it makes real densities
+29% more repeatable between sweep halves and removes a 6% offset against the classical fit. (An
+earlier run credited it with ten points of recovery; that came from clipped sweeps.) Judged on synthetic
 accuracy alone, the correct decision reversed.
 
 So the refinement is not adopted until the real-data checks agree. Two of them bear on Te and
