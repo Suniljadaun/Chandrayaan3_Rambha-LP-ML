@@ -3155,3 +3155,36 @@ unchanged with clipped sweeps removed (39.7% vs 28.8% positive), so it is not cl
 - **Correction to my own earlier check.** In the third review I reported the per-sweep test
   "unchanged without clipped sweeps". That check used a filter that matched nothing; with the
   real exclusion the numbers above shift slightly. The conclusions do not change.
+
+# Phase 21 — Coverage debate: which headline is right, and the setup calibration offsets (8 Nov 2026)
+
+Two debaters (one arguing above 67.9%, one defending it) and a judge re-examined the headline.
+
+- **83.5% is wrong.** It counted 3,230 clipped network outputs (on channel 2 at 1 Mohm their Te is
+  about a third of the neighbouring reference value and density about half) and 1,449 clipped
+  classical passes (density about 0.28 of the reference on that setup).
+- **72.7% (keep the clipped classical passes) is rejected.** It rested on a same-setup neighbour
+  comparison whose time window was computed with `astype('int64')/1e9`, which is kiloseconds in
+  this pandas version: the "+-10 min" window was about +-7 days.
+- **67.9% stays the headline.** The 442 clipped channel-1 20 Mohm sweeps go flat only above
+  +11.3 V (median; +4.3 V for clipped 2/1M) and match the unclipped sweeps on that setup
+  (classical 0.84 vs 0.83, network 0.81 vs 0.81 of the reference); admitting them gives 69.3%.
+  That needs a change to the clipping rule and a rerun of every script that uses it, so it is
+  reported as a sensitivity figure instead.
+- **New: setup calibration offsets** (`scripts/19_setup_calibration.py`). Each sweep's density
+  against the median classical density of unclipped passes on the three low-resistance setups
+  (1/49.9k, 2/49.9k, 1/1M; mutually within about 1%) within +-6 segments of the same file:
+  1/20M 0.83 (1.00 on 24 Aug, 0.81-0.89 after); 2/1M 0.54 / 0.46 / 1.00 on 24 / 25-26 Aug /
+  1-2 Sep; 2/20M cannot be checked. The network follows them (0.77-0.82 on 1/20M from 27 Aug;
+  0.54 / 0.44 / 1.00 on 2/1M), so the offset is in the data. 4,996 usable sweeps (16.7% of the
+  archive) are on a setup-day with an offset above 10% and are flagged in `setup_flags.csv`;
+  51.1% is usable unflagged, 48.8% from the reference setups alone.
+- **The network's own real-data error, with no offset mixed in:** on the reference setups, recovered
+  densities are +4.5% against classical neighbours (typical 6.1%, 58% within 10%; classical passes
+  94-98%). The upward bias on recovered sweeps is not visible in the overlap comparison.
+- **Downstream checks:** daily medians on the reference setups alone are 2-6% higher and follow the
+  same rise; the first three days stay low (257-401 cm^-3); the 2 Sep 19-20 h means are 447
+  (network) and 430 (classical) cm^-3, still inside the published 409-680.
+- Report: new Section 3.2.6 and Table 8 (later tables renumbered 9-13); abstract, Sections 2.1,
+  2.3, 3.1.1, 3.2.5, 3.4, limitations, future work and conclusions updated. Abstract "246"
+  corrected to 245 (24 Aug median 245.4).

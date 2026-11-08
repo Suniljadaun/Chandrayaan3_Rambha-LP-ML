@@ -38,6 +38,14 @@ Neither method can read a clipped curve, so clipped sweeps are excluded from bot
 sweeps on purpose shows why: a flat top from about +3 V cuts the network's Te to about a third and
 raises its density by about 10% (`scripts/18_recovered_validation.py`).
 
+**Setup calibration.** The six channel/resistor setups are used in turn, so neighbouring segments
+measure the same plasma seconds apart. Against the three low-resistance setups (which agree to about
+1%), channel 1 at 20 MΩ reads density about 17% low from 25 August and channel 2 at 1 MΩ about half
+on 24-26 August; both methods share these offsets. 4,996 usable sweeps are flagged in
+`outputs/tables/setup_flags.csv`; 51.1% of the archive is usable with no setup correction
+(`scripts/19_setup_calibration.py`). Admitting the 442 clipped channel-1 20 MΩ sweeps, which go flat
+only above +11.3 V, would give 69.3%; an earlier count that included all clipped sweeps (83.5%) is withdrawn.
+
 **Accuracy** on 4,000 held-out synthetic sweeps: density 0.021 dex (~5%), temperature 0.078 eV
 (~20% at the archive's typical 0.4 eV), plasma potential 0.141 V.
 

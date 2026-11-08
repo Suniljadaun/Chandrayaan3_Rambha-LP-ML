@@ -12,7 +12,7 @@ There are two ways to run the project, and you can mix them:
 
 > **Mental model.** Steps 1 to 7 are the main pipeline: steps 1 and 2 prepare data, step 3 trains
 > the network, steps 5 to 7 apply it and produce the results. Step 4 (Mars pre-training) was tried
-> and abandoned. Steps 8 to 18 are the experiments behind individual results in the report (§12).
+> and abandoned. Steps 8 to 19 are the experiments behind individual results in the report (§12).
 > Every step writes to `outputs/` and the next step reads from there, so you can stop, inspect and
 > resume anywhere.
 
@@ -31,7 +31,7 @@ There are two ways to run the project, and you can mix them:
 9. The MAVEN (Mars) transfer stage, and why it was abandoned
 10. Tuning, troubleshooting and common mistakes
 11. Assembling the submission
-12. The experiment scripts (steps 8 to 18)
+12. The experiment scripts (steps 8 to 19)
 
 ---
 
@@ -388,7 +388,7 @@ learning. Keep using `--no-maven`.
    belongs in `config.yaml`.
 8. **Treating the simulated-sweep error as the real accuracy.** It is the best case. Real accuracy
    is looser; say so.
-9. **Running experiment scripts before the main run.** Steps 8 to 18 read the outputs of steps 1
+9. **Running experiment scripts before the main run.** Steps 8 to 19 read the outputs of steps 1
    to 7, so run `run_all.py --no-maven` first.
 
 ---
@@ -417,33 +417,35 @@ learning. Keep using `--no-maven`.
 
 ---
 
-## 12. The experiment scripts (steps 8 to 18)
+## 12. The experiment scripts (steps 8 to 19)
 
 Each script answers one question in the report. All of them need a completed main run (§3).
 
 | Script | Question | Writes | Report |
 |---|---|---|---|
-| `08_ablate_physics.py` | Does the physics loss term help? Retrains at weights 0, 0.1, 0.25, 0.5 | `tables/physics_ablation.json` | §3.3.1, Table 8 |
+| `08_ablate_physics.py` | Does the physics loss term help? Retrains at weights 0, 0.1, 0.25, 0.5 | `tables/physics_ablation.json` | §3.3.1, Table 9 |
 | `09_photoelectron_test.py` | Is the second population photoelectrons? **Superseded** | `outputs_2pop/` | none |
 | `10_model_comparison.py` | Second population or baseline artefact? **Superseded** | `outputs_2pop/` | none |
 | `11_local_te_diagnostic.py` | Local-Te profile against a matched single-temperature control | `outputs_2pop/tables/local_te_diagnostic.json` | §3.3.2 |
 | `12_slope_curvature.py` | Does the slope change within a single sweep? | `outputs_2pop/tables/slope_curvature.json` | §3.3.2 |
-| `13_vp_decoupling.py` | Does aligning on Vp halve the Te error on simulated data? | prints a table | Table 10 |
-| `14_te_refine_eval.py` | Does that gain survive on real sweeps? (no) | `tables/te_refine_eval.json` | Table 11 |
+| `13_vp_decoupling.py` | Does aligning on Vp halve the Te error on simulated data? | prints a table | Table 11 |
+| `14_te_refine_eval.py` | Does that gain survive on real sweeps? (no) | `tables/te_refine_eval.json` | Table 12 |
 | `15_uncertainty_calibration.py` | Are the MC-dropout error bars honest? | `tables/uncertainty_calibration.json` | §3.1.3 |
 | `16_fisher_bound.py` | Best Te accuracy the noise allows (Cramér-Rao bound) | `tables/fisher_bound.json` | §3.3.3 |
 | `17_sheath_exponent.py` | Does the data alone choose the sheath exponent 0.40? Is the 1.0 V fit window a fair choice? | `tables/sheath_exponent.json` | §1.1, §2.3 |
 | `18_recovered_validation.py` | Are the recovered sweeps reliable? Twin halves, the classical test, clipping; draws F7 | `tables/recovered_validation.json`, `figures/F7_recovered_example.png` | §3.2.3, Figure 5 |
+| `19_setup_calibration.py` | Do the six channel/resistor setups agree on density? Flags sweeps on setups with an offset | `tables/setup_calibration.json`, `tables/setup_flags.csv` | §3.1.1, §3.2.6, Table 8 |
 
 Exact commands for the report's numbers:
 
 ```bash
-python scripts/13_vp_decoupling.py --n-synth 20000 --epochs 90   # Table 10 (slow: 3 seeds)
-python scripts/14_te_refine_eval.py                              # Table 11 (default window)
+python scripts/13_vp_decoupling.py --n-synth 20000 --epochs 90   # Table 11 (slow: 3 seeds)
+python scripts/14_te_refine_eval.py                              # Table 12 (default window)
 python scripts/15_uncertainty_calibration.py
 python scripts/16_fisher_bound.py
 python scripts/17_sheath_exponent.py                             # §2.3 (about 3 minutes)
 python scripts/18_recovered_validation.py                        # §3.2.3, Figure 5
+python scripts/19_setup_calibration.py                           # §3.2.6, Table 8
 ```
 
 Scripts 09 and 10 assumed a second electron population exists. Scripts 11 and 12 then showed that
