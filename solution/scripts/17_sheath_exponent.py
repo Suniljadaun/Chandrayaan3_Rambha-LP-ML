@@ -20,7 +20,8 @@ script chooses it again using nothing but the sweeps.
    the classical fit at 0.8, 1.0 and 1.5 V and compare density and temperature on the sweeps that
    pass at all three, to show the reported values do not depend on that choice.
 
-Uses only the cached sweeps from step 1; no network and no published values.
+Uses only the cached sweeps from step 1, without the clipped ones; no network and no published
+values.
 
 Outputs:
   outputs/tables/sheath_exponent.json
@@ -30,7 +31,7 @@ import copy
 import json
 import numpy as np
 from rambhalp.config import load_config, out
-from rambhalp import classical
+from rambhalp import classical, infer
 
 ALPHAS = [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
 WINDOWS = [0.8, 1.0, 1.5]
@@ -126,7 +127,11 @@ def main():
     print("STEP 17: sheath exponent from the data alone; fit-window sensitivity")
     print("=" * 70)
     sweeps = B.load_pickle(B.cache_dir(cfg) / "sweeps.pkl")
-    report = {"exponent": exponent_scan(sweeps, cfg), "window": window_scan(sweeps, cfg),
+    # Clipped sweeps are left out (config.yaml, recovery): their flat tops would bias the
+    # exponent, and neither method reads them.
+    clipped = infer.clipped_sweeps(sweeps, cfg)
+    sweeps = [s for s, c in zip(sweeps, clipped) if not c]
+    report = {"n_clipped_excluded": int(clipped.sum()),"exponent": exponent_scan(sweeps, cfg), "window": window_scan(sweeps, cfg),
               "configured_sheath_exponent": cfg["probe"]["sheath_exponent"],
               "configured_retardation_span_V": cfg["classical"]["retardation_span"]}
     path = out(cfg, "tables", "sheath_exponent.json")

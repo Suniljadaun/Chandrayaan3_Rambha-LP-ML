@@ -3138,3 +3138,20 @@ A second referee-style review found three analyses that predated the clipping fi
 Headline: 5,115 recovered (38.6% of failures; 91% of the 5,641 unclipped failures), 20,262 usable
 (67.9%), up from 15,147 (50.7%) unclipped classical passes. The ADC-channel effect near Vp is
 unchanged with clipped sweeps removed (39.7% vs 28.8% positive), so it is not clipping itself.
+
+# Phase 20 — Third review: every clipping-sensitive number on the unclipped basis (8 Nov 2026)
+
+- **The classical acceptance test does not detect clipping.** Script 18 (section e) now also fits
+  the deliberately clipped curves classically: at 70% clipping 51% still pass, with density 34%
+  low (typical 52%); at 90%, 87% pass with density 6% low. 1,449 real clipped sweeps passed it.
+  The detector flags at least 99.8% of these injected curves, and about 0.1% of sweeps on settings
+  that never clip.
+- **Scripts 17, 11 and 12 now exclude clipped sweeps.** Exponent: 0.40 on 4,491 unclipped sweeps
+  (median R^2 0.983 / 0.956 / 0.884 at 0.4 / 0.5 / 1.0); 0.50 on 20 Mohm persists (all unclipped
+  20 Mohm sweeps are channel 1). Fit window: 16,219 / 15,147 / 13,023 unclipped passes at 0.8 /
+  1.0 / 1.5 V. Matched control: positive at 0.3 V on 8 of 8 days (was 9 of 9). Per-sweep test:
+  33.8% vs 34.7%, 0.8 sigma (was 35.7%, 0.9 sigma); channels 38.0% vs 26.5%, 11.5 sigma;
+  scatter 3.7x. Hottest decile share now computed: 69% (65% was quoted, never computed).
+- **Correction to my own earlier check.** In the third review I reported the per-sweep test
+  "unchanged without clipped sweeps". That check used a filter that matched nothing; with the
+  real exclusion the numbers above shift slightly. The conclusions do not change.

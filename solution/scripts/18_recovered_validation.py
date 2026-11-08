@@ -34,8 +34,8 @@ directly.
 
   (e) CLIP INJECTION. So the effect of clipping is measured directly: take 3,000 unclipped
       sweeps that pass the classical fit, cut each one flat at 90%, 70% and 50% of its peak, and
-      compare the network's answers with those on the original curve. The real clipped sweeps
-      go flat from a median of about +1.4 V, between the 70% and 50% cases.
+      compare the network's answers, and the classical fit's, with those on the original curve.
+      The real clipped sweeps go flat from a median of about +1.6 V, between the 70% and 50% cases.
 
 Also draws F7: one real sweep the classical fit rejected, with the network's rebuilt curve.
 
@@ -294,6 +294,34 @@ def clip_injection(model, j, sweeps, key_to_i, cfg, rng):
             "Ne_change_percent_median": round(float((10 ** np.median(dn) - 1) * 100), 1),
             "Te_change_eV_median": round(float(np.median(p["Te_eV"] - base["Te_eV"])), 3),
             "Te_ratio_median": round(float(np.median(p["Te_eV"] / base["Te_eV"])), 2)}
+
+    # The classical fit on the same clipped curves. Each binned sweep is cut flat at the same
+    # fraction of its electron-current range above its floor (the median of its lowest 10%), and
+    # fitted again. Compared with the classical result on the original curve.
+    from types import SimpleNamespace
+    ne0 = pick["Ne_cc_c"].to_numpy(float); te0 = pick["Te_eV_c"].to_numpy(float)
+    out_["classical_by_clip_level"] = {}
+    for frac in (0.9, 0.7, 0.5):
+        clipped_sw, passed, dn, dt = [], [], [], []
+        for k, sw in enumerate(sel):
+            V, I = np.asarray(sw.V, float), np.asarray(sw.I, float)
+            sign = 1.0 if np.corrcoef(V, I)[0, 1] >= 0 else -1.0
+            Io = sign * I
+            floor = float(np.median(np.sort(Io)[:max(3, Io.size // 10)]))
+            Ic = sign * np.minimum(Io, floor + frac * (Io.max() - floor))
+            csw = SimpleNamespace(**{**sw.__dict__, "I": Ic})
+            clipped_sw.append(csw)
+            f = classical.fit_sweep(csw, cfg)
+            passed.append(not f.failed)
+            if not f.failed:
+                dn.append(np.log10(f.Ne_cc) - np.log10(ne0[k])); dt.append(f.Te_eV - te0[k])
+        dn, dt = np.array(dn), np.array(dt)
+        out_["classical_by_clip_level"][f"{frac:.1f}"] = {
+            "still_passes_fraction": round(float(np.mean(passed)), 3),
+            "Ne_change_percent_median": round(float((10 ** np.median(dn) - 1) * 100), 1) if dn.size else None,
+            "Ne_typical_change_percent": round(float((10 ** np.median(np.abs(dn)) - 1) * 100), 1) if dn.size else None,
+            "Te_change_eV_median": round(float(np.median(dt)), 3) if dt.size else None,
+            "flagged_clipped_fraction": round(float(infer.clipped_sweeps(clipped_sw, cfg).mean()), 3)}
     return out_
 
 

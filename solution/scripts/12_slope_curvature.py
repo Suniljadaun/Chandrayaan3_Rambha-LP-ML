@@ -112,7 +112,14 @@ def main():
             r.V_float = float(r.Vp_V - r.Te_eV * K)
 
     rows = []
-    for sw in sweeps:
+    # Clipped sweeps are left out (config.yaml, recovery): the classical Vp they would be
+    # aligned on is fitted to a saturated plateau.
+    from rambhalp.infer import clipped_sweeps
+    clipped = clipped_sweeps(sweeps, cfg)
+    print(f"clipped sweeps excluded: {int(clipped.sum())}")
+    for sw, is_clipped in zip(sweeps, clipped):
+        if is_clipped:
+            continue
         r = cmap.get((sw.timestamp, sw.idx))
         if r is None or not np.isfinite(r.Vp_V) or not np.isfinite(r.V_float):
             continue

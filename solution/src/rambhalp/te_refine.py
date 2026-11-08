@@ -69,9 +69,9 @@ U_GRID = np.linspace(U_LO, U_HI, U_N)
 def set_window(lo, hi, n=None):
     """Move the alignment window. Exists because the default spans the bias region where this
     archive is independently known to depart from the forward model (Phase 15b: a positive
-    excess over a matched single-Maxwellian control at u = -0.3 and -0.6 V on nine of nine
-    observation days, p = 0.002; Phase 16b: that excess reverses sign between probe channels at
-    11 sigma, marking it instrumental). A head that reads Te from exactly that window is
+    excess over a matched single-Maxwellian control at u = -0.3 V on eight of eight observation
+    days, p = 0.004, unclipped sweeps; Phase 16b: that excess reverses sign between probe channels
+    at 11 sigma, marking it instrumental). A head that reads Te from exactly that window is
     maximally exposed to a known sim-to-real defect, which is the leading explanation for why
     the refinement improves synthetic accuracy and worsens real ramp repeatability."""
     global U_LO, U_HI, U_N, U_GRID

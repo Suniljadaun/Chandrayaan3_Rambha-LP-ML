@@ -75,7 +75,7 @@ analysis. Getting there produced two findings of wider use:
 
 - *The standard diagnostic for multiple electron populations is not valid evidence.* Averaging
   sweeps that each have a different temperature bends the averaged curve exactly like a second
-  population would. On this archive the hottest 10% of sweeps supply 65% of the signal in the
+  population would. On this archive the hottest 10% of sweeps supply 69% of the signal in the
   region where the inference is made. A matched single-Maxwellian control reproduces the entire
   apparent signal.
 - *A synthetic hold-out cannot adjudicate a sim-to-real question.* Demonstrated twice, in

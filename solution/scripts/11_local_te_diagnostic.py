@@ -22,10 +22,10 @@ exponentials with different decay constants is not an exponential -- it has a gr
 So stacking sweeps drawn from a distribution of temperatures produces the two-population
 signature even when every individual sweep is a textbook single Maxwellian.
 
-This is not a small effect here. The archive's classical temperatures run from 0.24 eV at the 1st
-percentile to 1.56 eV at the 99th, and the deep retarding region of a stack is dominated by its
-hottest members: sweeps above the 90th percentile of Te supply 65% of the stacked current at
-u = -1.9 V while being 10% of the sample.
+This is not a small effect here. On the unclipped sweeps the classical temperatures run from
+0.24 eV at the 1st percentile to 1.61 eV at the 99th, and the deep retarding region of a stack is
+dominated by its hottest members: sweeps above the 90th percentile of Te supply 69% of the stacked
+current at u = -1.9 V while being 10% of the sample (computed below, reported in the output).
 
 So the diagnostic must always be run against a matched synthetic control: take the SAME sweeps,
 give each a PERFECT single Maxwellian at its own measured Te and Ne, stack them identically, and
@@ -89,7 +89,14 @@ def main():
 
     UG = np.arange(args.u_lo, 0.0001, args.step)
     groups = {}
-    for sw in sweeps:
+    # Clipped sweeps are left out (config.yaml, recovery): the classical Vp they would be
+    # aligned on is fitted to a saturated plateau.
+    from rambhalp.infer import clipped_sweeps
+    clipped = clipped_sweeps(sweeps, cfg)
+    print(f"clipped sweeps excluded: {int(clipped.sum())}")
+    for sw, is_clipped in zip(sweeps, clipped):
+        if is_clipped:
+            continue
         r = cmap.get((sw.timestamp, sw.idx))
         if r is None or not np.isfinite(r.Vp_V) or not np.isfinite(r.V_float):
             continue
@@ -138,6 +145,16 @@ def main():
         excess = [float(tr[j] - tc[j]) for j in show]
         print(f"  {'':<18} {'':>6}  {'REAL minus control':<22} " + "  ".join(
             f"{e:>+5.2f}" for e in excess))
+        if name == "ALL":
+            # how much of the stacked signal deep in the retarding region the hottest tenth of
+            # sweeps supplies (same weighting as the control: Ne*sqrt(Te)*exp(u/Te))
+            w = (Ne * np.sqrt(Te)) * np.exp(UG[show[0]] / Te)
+            hot = Te >= np.percentile(Te, 90)
+            report["hottest_decile_share_at_u_-1.9"] = float(w[hot].sum() / w.sum())
+            report["Te_p1_p99_eV"] = [float(x) for x in np.percentile(Te, [1, 99])]
+            print(f"  hottest 10% of sweeps supply {report['hottest_decile_share_at_u_-1.9']:.0%} "
+                  f"of the stacked current at u = -1.9 V; Te p1-p99 "
+                  f"{report['Te_p1_p99_eV'][0]:.2f}-{report['Te_p1_p99_eV'][1]:.2f} eV")
         report[name] = {"n": len(g), "median_Te_eV": med,
                         "real_localTe": [float(tr[j]) for j in show],
                         "control_localTe": [float(tc[j]) for j in show],

@@ -130,7 +130,7 @@ def forward_iv_two_np(V, Ne_c, Te_c, Ne_h, Te_h, Vp_V, cfg):
 #
 # That kink is not cosmetic. The matched-control diagnostic (scripts/11_local_te_diagnostic.py)
 # found the real stacked curves flatter than a stack of single Maxwellians in the 0.6 V below Vp,
-# reproducibly on NINE of nine observation days (sign test p = 0.002). Blending the two branches
+# reproducibly on all eight observation days with enough unclipped sweeps (sign test p = 0.004). Blending the two branches
 # in log space over ~1.3*Te reduces that excess at u = -0.3 from +0.24 to +0.13 eV; it does not
 # remove it. (An earlier linear blend appeared to remove it completely, but that was an artefact
 # of the blend itself; see config.yaml, transition_width_te.) Varying the sheath exponent over
