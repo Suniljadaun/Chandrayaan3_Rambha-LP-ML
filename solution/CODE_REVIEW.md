@@ -3188,3 +3188,15 @@ Two debaters (one arguing above 67.9%, one defending it) and a judge re-examined
 - Report: new Section 3.2.6 and Table 8 (later tables renumbered 9-13); abstract, Sections 2.1,
   2.3, 3.1.1, 3.2.5, 3.4, limitations, future work and conclusions updated. Abstract "246"
   corrected to 245 (24 Aug median 245.4).
+
+# Phase 22 — Reviewer pass before sending the Word version (11 Nov 2026)
+
+- Word files checked against the OOXML schema. The report had two equation-property elements out of
+  schema order (m:sepChr in m:dPr, m:scr in m:rPr) and folder entries in the zip; both fixed, PDF text
+  unchanged. The conference abstract's docx had style/table-property order errors; re-saved through
+  LibreOffice's Word export, text unchanged. All three Word files now pass validation.
+- Section 3.2.6: on channel 1 at 20 Mohm the density ratio falls from 0.89 to 0.81 across quintiles of
+  the reference density (script 19, ratio_1_20M_by_reference_density_quintile), so the offset may depend
+  on current level; stated as the reason the sweeps are flagged rather than corrected. Hedged because
+  days and density levels are mixed and noise in the reference biases a ratio downward.
+- Limitations: temperature differs by up to about 25% between the three reference setups (0.91-1.15).

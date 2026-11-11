@@ -165,6 +165,14 @@ def main():
                                 "median_abs_pct_error": round(float(np.median(np.abs(r_all - 1)) * 100), 1)}
     report["network_on_reference_setups"] = net_ref
 
+    # Does the 1/20M offset depend on the current level? Ratio by quintile of the reference density
+    # (days and density levels are mixed here, since density rose through the mission).
+    a20 = d[cls_ok & (d.setup == "1/20M")].copy()
+    a20["ref"] = neighbour_median(a20, ref_by_file, "cNe")
+    a20 = a20[np.isfinite(a20.ratio_classical) & np.isfinite(a20.ref)]
+    q = a20.groupby(pd.qcut(a20.ref, 5), observed=True).ratio_classical.median()
+    report["ratio_1_20M_by_reference_density_quintile"] = [round(float(v), 2) for v in q.values]
+
     # Sensitivity: clipped 1/20M sweeps.
     s20 = (d.setup == "1/20M") & d.is_clipped
     idx20 = np.flatnonzero(s20.values)
